@@ -30,6 +30,9 @@ namespace Quartz.Util
     /// <author>Marko Lahma (.NET)</author>
     [Serializable]
     public class Key<T> : IComparable<Key<T>>
+#if !NOPERF
+        , IEquatable<Key<T>>
+#endif
     {
         /// <summary>
         /// The default group for scheduling entities, with the value "DEFAULT".
@@ -167,5 +170,41 @@ namespace Quartz.Util
 
             return name.CompareTo(o.Name);
         }
+
+#if !NOPERF
+        public bool Equals(Key<T> other)
+        {
+            if (other == null)
+            {
+                return false;
+            }
+
+            if (group == null)
+            {
+                if (other.group != null)
+                {
+                    return false;
+                }
+            }
+            else if (!group.Equals(other.group))
+            {
+                return false;
+            }
+
+            if (name == null)
+            {
+                if (other.name != null)
+                {
+                    return false;
+                }
+            }
+            else if (!name.Equals(other.name))
+            {
+                return false;
+            }
+
+            return true;
+        }
+#endif
     }
 }

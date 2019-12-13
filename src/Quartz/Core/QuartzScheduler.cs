@@ -661,7 +661,11 @@ namespace Quartz.Core
             NotifySchedulerThread(trigger.GetNextFireTimeUtc());
             await NotifySchedulerListenersScheduled(trigger, cancellationToken).ConfigureAwait(false);
 
+#if NOPERF
             return ft.Value;
+#else
+            return ft.GetValueOrDefault();
+#endif
         }
 
         /// <summary>
@@ -1567,17 +1571,35 @@ namespace Quartz.Core
 
         private List<ITriggerListener> BuildTriggerListenerList()
         {
+#if NOPERF
             var listeners = new List<ITriggerListener>();
             listeners.AddRange(ListenerManager.GetTriggerListeners());
             listeners.AddRange(InternalTriggerListeners);
+#else
+            var triggerListeners = ListenerManager.GetTriggerListeners();
+            var internalTriggerListenersValues = internalTriggerListeners.Values;
+
+            var listeners = new List<ITriggerListener>(triggerListeners.Count + internalTriggerListenersValues.Count);
+            listeners.AddRange(triggerListeners);
+            listeners.AddRange(internalTriggerListenersValues);
+#endif
             return listeners;
         }
 
         private List<IJobListener> BuildJobListenerList()
         {
+#if NOPERF
             var listeners = new List<IJobListener>();
             listeners.AddRange(ListenerManager.GetJobListeners());
             listeners.AddRange(InternalJobListeners);
+#else
+            var jobListeners = ListenerManager.GetJobListeners();
+            var internalJobListeners2 = internalJobListeners.Values;
+
+            var listeners = new List<IJobListener>(jobListeners.Count + internalJobListeners.Count);
+            listeners.AddRange(jobListeners);
+            listeners.AddRange(internalJobListeners2);
+#endif
             return listeners;
         }
 
@@ -1632,8 +1654,15 @@ namespace Quartz.Core
             var listeners = BuildTriggerListenerList();
 
             // notify all trigger listeners in the list
+#if NOPERF
             foreach (ITriggerListener tl in listeners)
             {
+#else
+            for (var i = 0; i < listeners.Count; i++)
+            {
+                ITriggerListener tl = listeners[i];
+#endif
+
                 if (!MatchTriggerListener(tl, jec.Trigger.Key))
                 {
                     continue;
@@ -1670,8 +1699,15 @@ namespace Quartz.Core
             var listeners = BuildTriggerListenerList();
 
             // notify all trigger listeners in the list
+#if NOPERF
             foreach (ITriggerListener tl in listeners)
             {
+#else
+            for (var i = 0; i < listeners.Count; i++)
+            {
+                ITriggerListener tl = listeners[i];
+#endif
+
                 if (!MatchTriggerListener(tl, trigger.Key))
                 {
                     continue;
@@ -1703,8 +1739,15 @@ namespace Quartz.Core
             var listeners = BuildTriggerListenerList();
 
             // notify all trigger listeners in the list
+#if NOPERF
             foreach (ITriggerListener tl in listeners)
             {
+#else
+            for (var i = 0; i < listeners.Count; i++)
+            {
+                ITriggerListener tl = listeners[i];
+#endif
+
                 if (!MatchTriggerListener(tl, jec.Trigger.Key))
                 {
                     continue;
@@ -1731,11 +1774,21 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<IJobListener> listeners = BuildJobListenerList();
 
             // notify all job listeners
             foreach (IJobListener jl in listeners)
             {
+#else
+            var listeners = BuildJobListenerList();
+
+            // notify all job listeners
+            for (var i = 0; i < listeners.Count; i++)
+            {
+                IJobListener jl = listeners[i];
+#endif
+
                 if (!MatchJobListener(jl, jec.JobDetail.Key))
                 {
                     continue;
@@ -1765,8 +1818,15 @@ namespace Quartz.Core
             var listeners = BuildJobListenerList();
 
             // notify all job listeners
+#if NOPERF
             foreach (IJobListener jl in listeners)
             {
+#else
+            for (var i = 0; i < listeners.Count; i++)
+            {
+                IJobListener jl = listeners[i];
+#endif
+
                 if (!MatchJobListener(jl, jec.JobDetail.Key))
                 {
                     continue;
@@ -1795,11 +1855,21 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<IJobListener> listeners = BuildJobListenerList();
 
             // notify all job listeners
             foreach (IJobListener jl in listeners)
             {
+#else
+            var listeners = BuildJobListenerList();
+
+            // notify all job listeners
+            for (var i = 0; i < listeners.Count; i++)
+            {
+                IJobListener jl = listeners[i];
+#endif
+
                 if (!MatchJobListener(jl, jec.JobDetail.Key))
                 {
                     continue;

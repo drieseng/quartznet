@@ -17,6 +17,8 @@
  */
 #endregion
 
+ #define TICKS
+
 using System;
 
 namespace Quartz.Impl.Triggers
@@ -271,9 +273,17 @@ namespace Quartz.Impl.Triggers
                     return GetFireTimeBefore(EndTimeUtc);
                 }
 
+#if TICKS
+                DateTimeOffset lastTrigger = StartTimeUtc.AddTicks(repeatCount * repeatInterval.Ticks);
+#else
                 DateTimeOffset lastTrigger = StartTimeUtc.AddMilliseconds(repeatCount * repeatInterval.TotalMilliseconds);
+#endif
 
+#if NOPERF
                 if (!EndTimeUtc.HasValue || lastTrigger < EndTimeUtc.Value)
+#else
+                if (!EndTimeUtc.HasValue || lastTrigger < EndTimeUtc.GetValueOrDefault())
+#endif
                 {
                     return lastTrigger;
                 }
@@ -363,8 +373,12 @@ namespace Quartz.Impl.Triggers
 			{
                 DateTimeOffset? newFireTime = GetFireTimeAfter(SystemTime.UtcNow());
 
+#if NOPERF
                 while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
-				{
+#else
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.GetValueOrDefault()))
+#endif
+                {
 					newFireTime = GetFireTimeAfter(newFireTime);
 
                     if (!newFireTime.HasValue)
@@ -373,7 +387,11 @@ namespace Quartz.Impl.Triggers
                     }
 
                     //avoid infinite loop
+#if NOPERF
                     if (newFireTime.Value.Year > YearToGiveupSchedulingAt)
+#else
+                    if (newFireTime.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                     {
                         newFireTime = null;
                     }
@@ -384,8 +402,12 @@ namespace Quartz.Impl.Triggers
 			{
                 DateTimeOffset? newFireTime = GetFireTimeAfter(SystemTime.UtcNow());
 
-				while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
-				{
+#if NOPERF
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
+#else
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.GetValueOrDefault()))
+#endif
+                {
 					newFireTime = GetFireTimeAfter(newFireTime);
 
                     if (!newFireTime.HasValue)
@@ -394,7 +416,11 @@ namespace Quartz.Impl.Triggers
                     }
 
                     //avoid infinite loop
+#if NOPERF
                     if (newFireTime.Value.Year > YearToGiveupSchedulingAt)
+#else
+                    if (newFireTime.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                     {
                         newFireTime = null;
                     }
@@ -417,8 +443,12 @@ namespace Quartz.Impl.Triggers
 					TimesTriggered = 0;
 				}
 
-				if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
-				{
+#if NOPERF
+                if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
+#else
+                if (EndTimeUtc.HasValue && EndTimeUtc.GetValueOrDefault() < newFireTime)
+#endif
+                {
 					nextFireTimeUtc = null; // We are past the end time
 				}
 				else
@@ -444,8 +474,12 @@ namespace Quartz.Impl.Triggers
 				}
 
 
-				if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
-				{
+#if NOPERF
+                if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
+#else
+                if (EndTimeUtc.HasValue && EndTimeUtc.GetValueOrDefault() < newFireTime)
+#endif
+                {
 					nextFireTimeUtc = null; // We are past the end time
 				}
 				else
@@ -469,8 +503,12 @@ namespace Quartz.Impl.Triggers
 			previousFireTimeUtc = nextFireTimeUtc;
 			nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
 
-			while (nextFireTimeUtc.HasValue && cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.Value))
-			{
+#if NOPERF
+            while (nextFireTimeUtc.HasValue && cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.Value))
+#else
+            while (nextFireTimeUtc.HasValue && cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.GetValueOrDefault()))
+#endif
+            {
 				nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
 
                 if (!nextFireTimeUtc.HasValue)
@@ -479,7 +517,11 @@ namespace Quartz.Impl.Triggers
                 }
 
                 //avoid infinite loop
+#if NOPERF
                 if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                 {
                     nextFireTimeUtc = null;
                 }
@@ -502,7 +544,11 @@ namespace Quartz.Impl.Triggers
             }
 
             DateTimeOffset now = SystemTime.UtcNow();
+#if NOPERF
             while (nextFireTimeUtc.HasValue && !calendar.IsTimeIncluded(nextFireTimeUtc.Value))
+#else
+            while (nextFireTimeUtc.HasValue && !calendar.IsTimeIncluded(nextFireTimeUtc.GetValueOrDefault()))
+#endif
             {
                 nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
 
@@ -512,14 +558,26 @@ namespace Quartz.Impl.Triggers
                 }
 
                 //avoid infinite loop
+#if NOPERF
                 if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                 {
                     nextFireTimeUtc = null;
                 }
 
+#if NOPERF
                 if (nextFireTimeUtc != null && nextFireTimeUtc.Value < now)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault() < now)
+#endif
                 {
+#if NOPERF
                     TimeSpan diff = now - nextFireTimeUtc.Value;
+#else
+                    TimeSpan diff = now - nextFireTimeUtc.GetValueOrDefault();
+#endif
                     if (diff >= misfireThreshold)
                     {
                         nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
@@ -556,7 +614,11 @@ namespace Quartz.Impl.Triggers
                 }
 
                 //avoid infinite loop
+#if NOPERF
                 if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                 {
                     return null;
                 }
@@ -614,14 +676,22 @@ namespace Quartz.Impl.Triggers
 				afterTimeUtc = SystemTime.UtcNow();
 			}
 
-			if (repeatCount == 0 && afterTimeUtc.Value.CompareTo(StartTimeUtc) >= 0)
-			{
+#if NOPERF
+            if (repeatCount == 0 && afterTimeUtc.Value.CompareTo(StartTimeUtc) >= 0)
+#else
+            if (repeatCount == 0 && afterTimeUtc.GetValueOrDefault().CompareTo(StartTimeUtc) >= 0)
+#endif
+            {
 				return null;
 			}
 
 			DateTimeOffset startMillis = StartTimeUtc;
-			DateTimeOffset afterMillis = afterTimeUtc.Value;
-			DateTimeOffset endMillis = EndTimeUtc ?? DateTimeOffset.MaxValue;
+#if NOPERF
+            DateTimeOffset afterMillis = afterTimeUtc.Value;
+#else
+            DateTimeOffset afterMillis = afterTimeUtc.GetValueOrDefault();
+#endif
+            DateTimeOffset endMillis = EndTimeUtc ?? DateTimeOffset.MaxValue;
 
 
 			if (endMillis <= afterMillis)
@@ -634,17 +704,25 @@ namespace Quartz.Impl.Triggers
 				return startMillis;
 			}
 
-			long numberOfTimesExecuted = (long) ((long) (afterMillis - startMillis).TotalMilliseconds / repeatInterval.TotalMilliseconds + 1);
+#if TICKS
+            long numberOfTimesExecuted = (long)((long)(afterMillis - startMillis).Ticks / repeatInterval.Ticks + 1);
+#else
+            long numberOfTimesExecuted = (long) ((long) (afterMillis - startMillis).TotalMilliseconds / repeatInterval.TotalMilliseconds + 1);
+#endif
 
-			if (numberOfTimesExecuted > repeatCount &&
+            if (numberOfTimesExecuted > repeatCount &&
 				repeatCount != RepeatIndefinitely)
 			{
 				return null;
 			}
 
-			DateTimeOffset time = startMillis.AddMilliseconds(numberOfTimesExecuted * repeatInterval.TotalMilliseconds);
+#if TICKS
+            DateTimeOffset time = startMillis.AddTicks(numberOfTimesExecuted * repeatInterval.Ticks);
+#else
+            DateTimeOffset time = startMillis.AddMilliseconds(numberOfTimesExecuted * repeatInterval.TotalMilliseconds);
+#endif
 
-			if (endMillis <= time)
+            if (endMillis <= time)
 			{
 				return null;
 			}
@@ -666,8 +744,12 @@ namespace Quartz.Impl.Triggers
 			}
 
 			int numFires = ComputeNumTimesFiredBetween(StartTimeUtc, endUtc);
-			return StartTimeUtc.AddMilliseconds(numFires*repeatInterval.TotalMilliseconds);
-		}
+#if TICKS
+            return StartTimeUtc.AddTicks(numFires * repeatInterval.Ticks);
+#else
+            return StartTimeUtc.AddMilliseconds(numFires*repeatInterval.TotalMilliseconds);
+#endif
+        }
 
         /// <summary>
         /// Computes the number of times fired between the two UTC date times.
@@ -677,15 +759,20 @@ namespace Quartz.Impl.Triggers
         /// <returns></returns>
         public virtual int ComputeNumTimesFiredBetween(DateTimeOffset? startTimeUtc, DateTimeOffset? endTimeUtc)
 		{
-			long time = (long) (endTimeUtc.Value - startTimeUtc.Value).TotalMilliseconds;
+#if TICKS
+            long time = (long)(endTimeUtc.Value - startTimeUtc.Value).Ticks;
+            return (int)(time / repeatInterval.Ticks);
+#else
+            long time = (long) (endTimeUtc.Value - startTimeUtc.Value).TotalMilliseconds;
 			return (int) (time/repeatInterval.TotalMilliseconds);
-		}
+#endif
+        }
 
-		/// <summary>
-		/// Determines whether or not the <see cref="ISimpleTrigger" /> will occur
-		/// again.
-		/// </summary>
-		public override bool GetMayFireAgain()
+        /// <summary>
+        /// Determines whether or not the <see cref="ISimpleTrigger" /> will occur
+        /// again.
+        /// </summary>
+        public override bool GetMayFireAgain()
 		{
 			return GetNextFireTimeUtc().HasValue;
 		}
@@ -698,9 +785,13 @@ namespace Quartz.Impl.Triggers
 		{
 			base.Validate();
 
-			if (repeatCount != 0 && repeatInterval.TotalMilliseconds < 1)
-			{
-				throw new SchedulerException("Repeat Interval cannot be zero.");
+#if TICKS
+            if (repeatCount != 0 && repeatInterval.Ticks < 1)
+#else
+            if (repeatCount != 0 && repeatInterval.TotalMilliseconds < 1)
+#endif
+            {
+                throw new SchedulerException("Repeat Interval cannot be zero.");
 			}
 		}
 	}

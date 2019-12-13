@@ -13,6 +13,8 @@ namespace Quartz.Core
     /// </summary>
     public class ListenerManagerImpl : IListenerManager
     {
+        private static readonly IReadOnlyCollection<IJobListener> EmptyCollectionOfJobListeners = new List<IJobListener>().AsReadOnly();
+
         private readonly OrderedDictionary globalJobListeners = new OrderedDictionary(10);
 
         private readonly OrderedDictionary globalTriggerListeners = new OrderedDictionary(10);
@@ -40,6 +42,7 @@ namespace Quartz.Core
             {
                 globalJobListeners[jobListener.Name] = jobListener;
 
+#if NOPERF
                 List<IMatcher<JobKey>> matchersL = new List<IMatcher<JobKey>>();
                 if (matchers != null && matchers.Count > 0)
                 {
@@ -49,6 +52,18 @@ namespace Quartz.Core
                 {
                     matchersL.Add(EverythingMatcher<JobKey>.AllJobs());
                 }
+#else
+                List<IMatcher<JobKey>> matchersL;
+                if (matchers != null && matchers.Count > 0)
+                {
+                    matchersL = new List<IMatcher<JobKey>>(matchers);
+                }
+                else
+                {
+                    matchersL = new List<IMatcher<JobKey>>(1);
+                    matchersL.Add(EverythingMatcher<JobKey>.AllJobs());
+                }
+#endif
 
                 globalJobListenersMatchers[jobListener.Name] = matchersL;
             }
@@ -132,12 +147,51 @@ namespace Quartz.Core
             }
         }
 
-        public IReadOnlyCollection<IJobListener> GetJobListeners()
+        public IReadOnlyCollection<IJobListener> GetJobListenersOld()
         {
             lock (globalJobListeners)
             {
                 return new List<IJobListener>(globalJobListeners.Values.Cast<IJobListener>()).AsReadOnly();
             }
+        }
+
+        public IReadOnlyCollection<IJobListener> GetJobListenersNew()
+        {
+            lock (globalJobListeners)
+            {
+                var globalJobListenersValues = globalJobListeners.Values;
+                var jobListeners = new List<IJobListener>(globalJobListenersValues.Count);
+
+                foreach (var jobListener in globalJobListenersValues)
+                {
+                    jobListeners.Add((IJobListener)jobListener);
+                }
+
+                return jobListeners.AsReadOnly();
+            }
+        }
+
+        public IReadOnlyCollection<IJobListener> GetJobListeners()
+        {
+#if NOPERF
+            lock (globalJobListeners)
+            {
+                return new List<IJobListener>(globalJobListeners.Values.Cast<IJobListener>()).AsReadOnly();
+            }
+#else
+            lock (globalJobListeners)
+            {
+                var globalJobListenersValues = globalJobListeners.Values;
+                var jobListeners = new List<IJobListener>(globalJobListenersValues.Count);
+
+                foreach (var jobListener in globalJobListenersValues)
+                {
+                    jobListeners.Add((IJobListener) jobListener);
+                }
+
+                return jobListeners.AsReadOnly();
+            }
+#endif
         }
 
         public IJobListener GetJobListener(string name)
@@ -193,7 +247,7 @@ namespace Quartz.Core
             lock (globalTriggerListeners)
             {
                 globalTriggerListeners[triggerListener.Name] = triggerListener;
-                var matchers = new List<IMatcher<TriggerKey>> {matcher};
+                var matchers = new List<IMatcher<TriggerKey>>(1) {matcher};
                 globalTriggerListenersMatchers[triggerListener.Name] = matchers;
             }
         }
@@ -278,10 +332,25 @@ namespace Quartz.Core
 
         public IReadOnlyCollection<ITriggerListener> GetTriggerListeners()
         {
+#if NOPERF
             lock (globalTriggerListeners)
             {
                 return new List<ITriggerListener>(globalTriggerListeners.Values.Cast<ITriggerListener>()).AsReadOnly();
             }
+#else
+            lock (globalJobListeners)
+            {
+                var globalTriggerListenersValues = globalTriggerListeners.Values;
+                var triggerListeners = new List<ITriggerListener>(globalTriggerListenersValues.Count);
+
+                foreach (var triggerListener in globalTriggerListenersValues)
+                {
+                    triggerListeners.Add((ITriggerListener) triggerListener);
+                }
+
+                return triggerListeners.AsReadOnly();
+            }
+#endif
         }
 
         public ITriggerListener GetTriggerListener(string name)

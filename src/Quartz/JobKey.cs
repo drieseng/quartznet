@@ -20,6 +20,7 @@
 #endregion
 
 using Quartz.Util;
+using System;
 
 namespace Quartz
 {
@@ -57,6 +58,9 @@ namespace Quartz
     /// <seealso cref="Key{T}.DefaultGroup" />
     [System.Serializable]
     public sealed class JobKey : Key<JobKey>
+#if !NOPERF
+        , IEquatable<JobKey>
+#endif
     {
         private JobKey()
         {
@@ -79,5 +83,12 @@ namespace Quartz
         {
             return new JobKey(name, group);
         }
+
+#if !NOPERF
+        public bool Equals(JobKey other)
+        {
+            return base.Equals(other);
+        }
+#endif
     }
 }
