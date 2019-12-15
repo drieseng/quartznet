@@ -2746,7 +2746,11 @@ namespace Quartz.Impl.AdoJobStore
             }
         }
 
+#if NOPERF
         public virtual async Task<IReadOnlyCollection<TriggerFiredResult>> TriggersFired(
+#else
+        public virtual async Task<IReadOnlyList<TriggerFiredResult>> TriggersFired(
+#endif
             IReadOnlyCollection<IOperableTrigger> triggers,
             CancellationToken cancellationToken = default)
         {

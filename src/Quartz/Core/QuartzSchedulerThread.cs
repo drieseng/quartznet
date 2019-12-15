@@ -250,7 +250,11 @@ namespace Quartz.Core
                     int availThreadCount = qsRsrcs.ThreadPool.BlockForAvailableThreads();
                     if (availThreadCount > 0)
                     {
+#if NOPERF
                         List<IOperableTrigger> triggers;
+#else
+                        IReadOnlyList<IOperableTrigger> acquiredTriggers;
+#endif
 
                         DateTimeOffset now = SystemTime.UtcNow();
 
@@ -259,11 +263,19 @@ namespace Quartz.Core
                         {
                             var noLaterThan = now + idleWaitTime;
                             var maxCount = Math.Min(availThreadCount, qsRsrcs.MaxBatchSize);
+#if NOPERF
                             triggers = new List<IOperableTrigger>(await qsRsrcs.JobStore.AcquireNextTriggers(noLaterThan, maxCount, qsRsrcs.BatchTimeWindow, CancellationToken.None).ConfigureAwait(false));
+#else
+                            acquiredTriggers = await qsRsrcs.JobStore.AcquireNextTriggers(noLaterThan, maxCount, qsRsrcs.BatchTimeWindow, CancellationToken.None).ConfigureAwait(false);
+#endif
                             lastAcquireFailed = false;
                             if (Log.IsDebugEnabled())
                             {
+#if NOPERF
                                 Log.DebugFormat("Batch acquisition of {0} triggers", triggers?.Count ?? 0);
+#else
+                                Log.DebugFormat("Batch acquisition of {0} triggers", acquiredTriggers?.Count ?? 0);
+#endif
                             }
                         }
                         catch (JobPersistenceException jpe)
@@ -288,18 +300,38 @@ namespace Quartz.Core
                             continue;
                         }
 
+#if NOPERF
                         if (triggers != null && triggers.Count > 0)
+#else
+                        if (acquiredTriggers != null && acquiredTriggers.Count > 0)
+#endif
                         {
                             now = SystemTime.UtcNow();
+#if NOPERF
                             DateTimeOffset triggerTime = triggers[0].GetNextFireTimeUtc().Value;
+#else
+                            DateTimeOffset triggerTime = acquiredTriggers[0].GetNextFireTimeUtc().Value;
+#endif
                             TimeSpan timeUntilTrigger = triggerTime - now;
+
+#if !NOPERF
+                            bool scheduleChangedSignificantly = false;
+#endif
 
                             while (timeUntilTrigger > TimeSpan.Zero)
                             {
+#if NOPERF
                                 if (await ReleaseIfScheduleChangedSignificantly(triggers, triggerTime).ConfigureAwait(false))
                                 {
                                     break;
                                 }
+#else
+                                if (await ReleaseIfScheduleChangedSignificantly(acquiredTriggers, triggerTime).ConfigureAwait(false))
+                                {
+                                    scheduleChangedSignificantly = true;
+                                    break;
+                                }
+#endif
                                 lock (sigLock)
                                 {
                                     if (halted)
@@ -324,22 +356,38 @@ namespace Quartz.Core
                                         }
                                     }
                                 }
+#if NOPERF
                                 if (await ReleaseIfScheduleChangedSignificantly(triggers, triggerTime).ConfigureAwait(false))
                                 {
                                     break;
                                 }
+#else
+                                if (await ReleaseIfScheduleChangedSignificantly(acquiredTriggers, triggerTime).ConfigureAwait(false))
+                                {
+                                    scheduleChangedSignificantly = true;
+                                    break;
+                                }
+#endif
                                 now = SystemTime.UtcNow();
                                 timeUntilTrigger = triggerTime - now;
                             }
 
                             // this happens if releaseIfScheduleChangedSignificantly decided to release triggers
+#if NOPERF
                             if (triggers.Count == 0)
+#else
+                            if (scheduleChangedSignificantly)
+#endif
                             {
                                 continue;
                             }
 
                             // set triggers to 'executing'
+#if NOPERF
                             List<TriggerFiredResult> bndles = new List<TriggerFiredResult>();
+#else
+                            IReadOnlyList<TriggerFiredResult> bndles;
+#endif
 
                             bool goAhead;
                             lock (sigLock)
@@ -351,24 +399,40 @@ namespace Quartz.Core
                             {
                                 try
                                 {
+#if NOPERF
                                     var res = await qsRsrcs.JobStore.TriggersFired(triggers, CancellationToken.None).ConfigureAwait(false);
                                     if (res != null)
                                     {
                                         bndles = res.ToList();
                                     }
+#else
+                                    bndles = await qsRsrcs.JobStore.TriggersFired(acquiredTriggers, CancellationToken.None).ConfigureAwait(false);
+#endif
                                 }
                                 catch (SchedulerException se)
                                 {
+#if NOPERF
                                     var msg = "An error occurred while firing triggers '" + triggers + "'";
+#else
+                                    var msg = "An error occurred while firing triggers '" + acquiredTriggers + "'";
+#endif
                                     await qs.NotifySchedulerListenersError(msg, se, CancellationToken.None).ConfigureAwait(false);
                                     // QTZ-179 : a problem occurred interacting with the triggers from the db
                                     // we release them and loop again
+#if NOPERF
                                     foreach (IOperableTrigger t in triggers)
+#else
+                                    foreach (IOperableTrigger t in acquiredTriggers)
+#endif
                                     {
                                         await qsRsrcs.JobStore.ReleaseAcquiredTrigger(t, CancellationToken.None).ConfigureAwait(false);
                                     }
                                     continue;
                                 }
+                            }
+                            else
+                            {
+                                bndles = Array.Empty<TriggerFiredResult>(); ;
                             }
 
                             for (int i = 0; i < bndles.Count; i++)
@@ -377,7 +441,11 @@ namespace Quartz.Core
                                 TriggerFiredBundle bndle = result.TriggerFiredBundle;
                                 Exception exception = result.Exception;
 
+#if NOPERF
                                 IOperableTrigger trigger = triggers[i];
+#else
+                                IOperableTrigger trigger = acquiredTriggers[i];
+#endif
                                 // TODO SQL exception?
                                 if (exception != null && (exception is DbException || exception.InnerException is DbException))
                                 {
@@ -475,7 +543,11 @@ namespace Quartz.Core
             }
         }
 
+#if NOPERF
         private async Task<bool> ReleaseIfScheduleChangedSignificantly(List<IOperableTrigger> triggers, DateTimeOffset triggerTime)
+#else
+        private async Task<bool> ReleaseIfScheduleChangedSignificantly(IReadOnlyCollection<IOperableTrigger> triggers, DateTimeOffset triggerTime)
+#endif
         {
             if (IsCandidateNewTimeEarlierWithinReason(triggerTime, true))
             {
@@ -484,7 +556,9 @@ namespace Quartz.Core
                     // above call does a clearSignaledSchedulingChange()
                     await qsRsrcs.JobStore.ReleaseAcquiredTrigger(trigger).ConfigureAwait(false);
                 }
+#if NOPERF
                 triggers.Clear();
+#endif
                 return true;
             }
 
@@ -551,7 +625,7 @@ namespace Quartz.Core
         public void Start()
         {
             cancellationTokenSource = new CancellationTokenSource();
-            task = Task.Run(Run);
+            task = Task.Run(() => Run());
         }
 
         public async Task Shutdown()

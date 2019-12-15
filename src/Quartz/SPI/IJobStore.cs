@@ -587,7 +587,11 @@ namespace Quartz.Spi
         /// <returns></returns>
         /// <seealso cref="ITrigger">
         /// </seealso>
+#if NOPERF
         Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
+#else
+        Task<IReadOnlyList<IOperableTrigger>> AcquireNextTriggers(
+#endif
             DateTimeOffset noLaterThan, 
             int maxCount, 
             TimeSpan timeWindow,
@@ -613,7 +617,11 @@ namespace Quartz.Spi
         /// state.  Preference is to return an empty list if none of the triggers
         /// could be fired.
         /// </returns>
+#if NOPERF
         Task<IReadOnlyCollection<TriggerFiredResult>> TriggersFired(
+#else
+        Task<IReadOnlyList<TriggerFiredResult>> TriggersFired(
+#endif
             IReadOnlyCollection<IOperableTrigger> triggers,
             CancellationToken cancellationToken = default);
 

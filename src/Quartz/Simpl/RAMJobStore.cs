@@ -1886,7 +1886,11 @@ namespace Quartz.Simpl
         /// given <see cref="ITrigger" /> (executing its associated <see cref="IJob" />),
         /// that it had previously acquired (reserved).
         /// </summary>
+#if NOPERF
         public virtual Task<IReadOnlyCollection<TriggerFiredResult>> TriggersFired(
+#else
+        public virtual Task<IReadOnlyList<TriggerFiredResult>> TriggersFired(
+#endif
             IReadOnlyCollection<IOperableTrigger> triggers,
             CancellationToken cancellationToken = default)
         {
@@ -1963,7 +1967,7 @@ namespace Quartz.Simpl
                     results.Add(new TriggerFiredResult(bndle));
                 }
 
-                return Task.FromResult<IReadOnlyCollection<TriggerFiredResult>>(results);
+                return Task.FromResult<IReadOnlyList<TriggerFiredResult>>(results);
             }
         }
 
@@ -1982,8 +1986,6 @@ namespace Quartz.Simpl
         {
             lock (lockObject)
             {
-                triggersByKey.TryGetValue(trigger.Key, out var tw);
-
                 // It's possible that the job is null if:
                 //   1- it was deleted during execution
                 //   2- RAMJobStore is being used only for volatile jobs / triggers
@@ -2031,7 +2033,7 @@ namespace Quartz.Simpl
                 }
 
                 // check for trigger deleted during execution...
-                if (tw != null)
+                if (triggersByKey.TryGetValue(trigger.Key, out var tw))
                 {
                     if (triggerInstCode == SchedulerInstruction.DeleteTrigger)
                     {
