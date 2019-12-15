@@ -265,13 +265,21 @@ namespace Quartz.Impl
         {
             get
             {
+#if NOPERF
                 if (jobRunTime == null)
+#else
+                if (!jobRunTime.HasValue)
+#endif
                 {
                     // we are still in progress, calculate dynamically
                     return DateTimeOffset.UtcNow - FireTimeUtc;
                 }
 
+#if NOPERF
                 return jobRunTime.Value;
+#else
+                return jobRunTime.GetValueOrDefault();
+#endif
             }
             set => jobRunTime = value;
         }
