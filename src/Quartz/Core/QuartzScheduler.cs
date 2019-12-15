@@ -1635,7 +1635,18 @@ namespace Quartz.Core
             {
                 return true;
             }
+#if NOPERF
             return matchers.Any(matcher => matcher.IsMatch(key));
+#else
+            foreach (var matcher in matchers)
+            {
+                if (matcher.IsMatch(key))
+                {
+                    return true;
+                }
+            }
+            return false;
+#endif
         }
 
         /// <summary>
