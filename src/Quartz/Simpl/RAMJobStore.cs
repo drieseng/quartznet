@@ -49,12 +49,14 @@ namespace Quartz.Simpl
     /// <author>Marko Lahma (.NET)</author>
     public class RAMJobStore : IJobStore
     {
-        private static readonly IReadOnlyCollection<IOperableTrigger> EmptyCollectionOfOperableTriggers = new List<IOperableTrigger>().AsReadOnly();
+#if !NOPERF
+        private static readonly IReadOnlyList<IOperableTrigger> EmptyListOfOperableTriggers = new IOperableTrigger[0];
+#endif
 
         private readonly object lockObject = new object();
 
         private readonly Dictionary<JobKey, JobWrapper> jobsByKey = new Dictionary<JobKey, JobWrapper>();
-#if CONCURRENTDICTIONARY
+#if NOPERF
         private readonly ConcurrentDictionary<TriggerKey, TriggerWrapper> triggersByKey = new ConcurrentDictionary<TriggerKey, TriggerWrapper>();
 #else
         private readonly Dictionary<TriggerKey, TriggerWrapper> triggersByKey = new Dictionary<TriggerKey, TriggerWrapper>();
@@ -561,14 +563,14 @@ namespace Quartz.Simpl
             lock (lockObject)
             {
                 // remove from triggers by FQN map
-#if CONCURRENTDICTIONARY
+#if NOPERF
                 var found = triggersByKey.TryRemove(key, out var tw);
 #else
                 var found = triggersByKey.TryGetValue(key, out var tw);
 #endif
                 if (found)
                 {
-#if !CONCURRENTDICTIONARY
+#if !NOPERF
                     triggersByKey.Remove(key);
 #endif
                     // remove from triggers by group
@@ -594,7 +596,12 @@ namespace Quartz.Simpl
                     {
                         JobWrapper jw = jobsByKey[tw.JobKey];
                         var trigs = GetTriggersForJobInternal(tw.JobKey);
-                        if ((trigs == null || trigs.Count == 0) && !jw.JobDetail.Durable)
+#if NOPERF
+                        if (trigs.Count == 0 && !jw.JobDetail.Durable)
+#else
+                        if (trigs.Length == 0 && !jw.JobDetail.Durable)
+#endif
+
                         {
                             if (RemoveJobInternal(jw.Key))
                             {
@@ -623,7 +630,7 @@ namespace Quartz.Simpl
             lock (lockObject)
             {
                 // remove from triggers by FQN map
-#if CONCURRENTDICTIONARY
+#if NOPERF
                 found = triggersByKey.TryRemove(triggerKey, out var tw);
                 if (found)
                 {
@@ -713,14 +720,14 @@ namespace Quartz.Simpl
             TriggerKey triggerKey,
             CancellationToken cancellationToken = default)
         {
-#if !CONCURRENTDICTIONARY
+#if !NOPERF
             lock (lockObject)
             {
 #endif
             triggersByKey.TryGetValue(triggerKey, out var tw);
             var trigger = (IOperableTrigger) tw?.Trigger.Clone();
             return Task.FromResult(trigger);
-#if !CONCURRENTDICTIONARY
+#if !NOPERF
             }
 #endif
         }
@@ -1178,39 +1185,57 @@ namespace Quartz.Simpl
             JobKey jobKey,
             CancellationToken cancellationToken = default)
         {
+#if NOPERF
             return Task.FromResult(GetTriggersForJobInternal(jobKey));
+#else
+            return Task.FromResult<IReadOnlyCollection<IOperableTrigger>>(GetTriggersForJobInternal(jobKey));
+#endif
         }
 
+#if NOPERF
         private IReadOnlyCollection<IOperableTrigger> GetTriggersForJobInternal(JobKey jobKey)
+#else
+        private IOperableTrigger[] GetTriggersForJobInternal(JobKey jobKey)
+#endif
         {
             lock (lockObject)
             {
                 if (triggersByJob.TryGetValue(jobKey, out var jobList))
                 {
-                    var trigList = new List<IOperableTrigger>(jobList.Count);
 #if NOPERF
+                    var trigList = new List<IOperableTrigger>(jobList.Count);
                     foreach (var tw in jobList)
                     {
+                        trigList.Add((IOperableTrigger) tw.Trigger.Clone());
 #else
+                    var trigList = new IOperableTrigger[jobList.Count];
                     for (var i = 0; i < jobList.Count; i++)
                     {
                         var tw = jobList[i];
+                        trigList[i] = (IOperableTrigger)tw.Trigger.Clone();
 #endif
-                        trigList.Add((IOperableTrigger) tw.Trigger.Clone());
                     }
                     return trigList;
                 }
             }
 
+#if NOPERF
             return new List<IOperableTrigger>();
+#else
+            return new IOperableTrigger[0];
+#endif
         }
 
         /// <summary>
         /// Gets the trigger wrappers for job.
         /// </summary>
         /// <returns></returns>
+#if NOPERF
         protected virtual IEnumerable<TriggerWrapper> GetTriggerWrappersForJob(
-            JobKey jobKey)
+#else
+        protected virtual TriggerWrapper[] GetTriggerWrappersForJob(
+#endif
+        JobKey jobKey)
         {
             lock (lockObject)
             {
@@ -1224,7 +1249,11 @@ namespace Quartz.Simpl
                 }
             }
 
+#if NOPERF
             return new List<TriggerWrapper>();
+#else
+            return new TriggerWrapper[0];
+#endif
         }
 
         /// <summary>
@@ -1715,7 +1744,11 @@ namespace Quartz.Simpl
         /// by the calling scheduler.
         /// </summary>
         /// <seealso cref="ITrigger" />
+#if NOPERF
         public virtual Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
+#else
+        public virtual Task<IReadOnlyList<IOperableTrigger>> AcquireNextTriggers(
+#endif
             DateTimeOffset noLaterThan,
             int maxCount,
             TimeSpan timeWindow,
@@ -1725,6 +1758,9 @@ namespace Quartz.Simpl
             {
 #if NOPERF
                 var result = new List<IOperableTrigger>();
+//                Console.WriteLine("NOPERF");
+#else
+//                Console.WriteLine("PERF");
 #endif // !NOPERF
 
                 // return empty list if store has no triggers.
@@ -1733,7 +1769,7 @@ namespace Quartz.Simpl
 #if NOPERF
                     return Task.FromResult<IReadOnlyCollection<IOperableTrigger>>(result);
 #else
-                    return Task.FromResult(EmptyCollectionOfOperableTriggers);
+                    return Task.FromResult(EmptyListOfOperableTriggers);
 #endif // NOPERF
                 }
 
@@ -1855,9 +1891,11 @@ namespace Quartz.Simpl
                         timeTriggers.Add(excludedTrigger);
                     }
                 }
-#endif
 
                 return Task.FromResult<IReadOnlyCollection<IOperableTrigger>>(result);
+#else
+                return Task.FromResult<IReadOnlyList<IOperableTrigger>>(result);
+#endif
             }
         }
 
@@ -1944,8 +1982,12 @@ namespace Quartz.Simpl
 
                     if (job.ConcurrentExecutionDisallowed)
                     {
+#if NOPERF
                         IEnumerable<TriggerWrapper> trigs = GetTriggerWrappersForJob(job.Key);
                         foreach (TriggerWrapper ttw in trigs)
+#else
+                        foreach (TriggerWrapper ttw in GetTriggerWrappersForJob(job.Key))
+#endif
                         {
                             if (ttw.state == InternalTriggerState.Waiting)
                             {
@@ -1967,7 +2009,11 @@ namespace Quartz.Simpl
                     results.Add(new TriggerFiredResult(bndle));
                 }
 
+#if NOPERF
+                return Task.FromResult<IReadOnlyCollection<TriggerFiredResult>>(results);
+#else
                 return Task.FromResult<IReadOnlyList<TriggerFiredResult>>(results);
+#endif
             }
         }
 
@@ -2009,8 +2055,12 @@ namespace Quartz.Simpl
                     if (jd.ConcurrentExecutionDisallowed)
                     {
                         blockedJobs.Remove(jd.Key);
+#if NOPERF
                         IEnumerable<TriggerWrapper> trigs = GetTriggerWrappersForJob(jd.Key);
                         foreach (TriggerWrapper ttw in trigs)
+#else
+                        foreach (TriggerWrapper ttw in GetTriggerWrappersForJob(jd.Key))
+#endif
                         {
                             if (ttw.state == InternalTriggerState.Blocked)
                             {

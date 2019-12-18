@@ -528,12 +528,20 @@ namespace Quartz.Util
         /// <param name="key">The key.</param>
         /// <param name="val">The val.</param>
         /// <returns></returns>
+#if NOPERF
         public virtual object Put(TKey key, TValue val)
+#else
+        public virtual void Put(TKey key, TValue val)
+#endif
         {
             dirty = true;
+#if NOPERF
             map.TryGetValue(key, out var tempObject);
             map[key] = val;
             return tempObject;
+#else
+            map[key] = val;
+#endif
         }
 
         /// <summary>

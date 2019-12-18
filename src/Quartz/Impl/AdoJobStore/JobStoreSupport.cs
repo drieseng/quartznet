@@ -2533,7 +2533,11 @@ namespace Quartz.Impl.AdoJobStore
         /// by the calling scheduler.
         /// </summary>
         /// <seealso cref="ReleaseAcquiredTrigger(IOperableTrigger, CancellationToken)" />
+#if NOPERF
         public virtual async Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
+#else
+        public virtual async Task<IReadOnlyList<IOperableTrigger>> AcquireNextTriggers(
+#endif
             DateTimeOffset noLaterThan,
             int maxCount,
             TimeSpan timeWindow,
@@ -2581,7 +2585,11 @@ namespace Quartz.Impl.AdoJobStore
         // TODO: this really ought to return something like a FiredTriggerBundle,
         // so that the fireInstanceId doesn't have to be on the trigger...
 
+#if NOPERF
+        protected virtual async Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTrigger(
+#else
         protected virtual async Task<IReadOnlyList<IOperableTrigger>> AcquireNextTrigger(
+#endif
             ConnectionAndTransactionHolder conn,
             DateTimeOffset noLaterThan,
             int maxCount,

@@ -202,7 +202,7 @@ namespace Quartz.Simpl
                 runningTasks.Add(unwrappedTask);
             }
             // Register a callback to remove the task from the running list once it has completed
-            unwrappedTask.ContinueWith(RemoveTaskFromRunningList);
+            unwrappedTask.ContinueWith(t => RemoveTaskFromRunningList(t));
 
             // Start the task using the task scheduler
             task.Start(Scheduler);

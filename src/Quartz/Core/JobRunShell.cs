@@ -51,7 +51,11 @@ namespace Quartz.Core
     /// <author>Marko Lahma (.NET)</author>
     public class JobRunShell : SchedulerListenerSupport
     {
+#if NOPERF
         private readonly ILog log;
+#else
+        private static readonly ILog log = LogProvider.GetLogger(typeof(JobRunShell));
+#endif
 
         private JobExecutionContextImpl jec;
         private QuartzScheduler qs;
@@ -68,7 +72,9 @@ namespace Quartz.Core
         {
             this.scheduler = scheduler;
             firedTriggerBundle = bundle;
+#if NOPERF
             log = LogProvider.GetLogger(GetType());
+#endif
         }
 
         public override Task SchedulerShuttingdown(CancellationToken cancellationToken = default)
@@ -89,7 +95,10 @@ namespace Quartz.Core
             qs = sched;
 
             IJob job;
+#if NOPERF
             IJobDetail jobDetail = firedTriggerBundle.JobDetail;
+#endif
+
 
             try
             {
@@ -97,13 +106,22 @@ namespace Quartz.Core
             }
             catch (SchedulerException se)
             {
+#if NOPERF
                 await sched.NotifySchedulerListenersError($"An error occurred instantiating job to be executed. job= '{jobDetail.Key}'", se, cancellationToken).ConfigureAwait(false);
+#else
+                await sched.NotifySchedulerListenersError($"An error occurred instantiating job to be executed. job= '{firedTriggerBundle.JobDetail.Key}'", se, cancellationToken).ConfigureAwait(false);
+#endif
                 throw;
             }
             catch (Exception e)
             {
+#if NOPERF
                 SchedulerException se = new SchedulerException($"Problem instantiating type '{jobDetail.JobType.FullName}'", e);
                 await sched.NotifySchedulerListenersError($"An error occurred instantiating job to be executed. job= '{jobDetail.Key}'", se, cancellationToken).ConfigureAwait(false);
+#else
+                SchedulerException se = new SchedulerException($"Problem instantiating type '{firedTriggerBundle.JobDetail.JobType.FullName}'", e);
+                await sched.NotifySchedulerListenersError($"An error occurred instantiating job to be executed. job= '{firedTriggerBundle.JobDetail.Key}'", se, cancellationToken).ConfigureAwait(false);
+#endif
                 throw se;
             }
 

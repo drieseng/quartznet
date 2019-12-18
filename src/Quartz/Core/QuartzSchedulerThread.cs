@@ -63,11 +63,15 @@ namespace Quartz.Core
         private CancellationTokenSource cancellationTokenSource;
         private Task task;
 
+#if NOPERF
         /// <summary>
         /// Gets the log.
         /// </summary>
         /// <value>The log.</value>
         internal ILog Log { get; }
+#else
+        private static readonly ILog Log = LogProvider.GetLogger(typeof(QuartzSchedulerThread));
+#endif
 
         /// <summary>
         /// Sets the idle wait time.
@@ -105,7 +109,9 @@ namespace Quartz.Core
         /// </summary>
         internal QuartzSchedulerThread(QuartzScheduler qs, QuartzSchedulerResources qsRsrcs)
         {
+#if NOPERF
             Log = LogProvider.GetLogger(GetType());
+#endif
             //ThreadGroup generatedAux = qs.SchedulerThreadGroup;
             this.qs = qs;
             this.qsRsrcs = qsRsrcs;
@@ -310,7 +316,7 @@ namespace Quartz.Core
 #if NOPERF
                             DateTimeOffset triggerTime = triggers[0].GetNextFireTimeUtc().Value;
 #else
-                            DateTimeOffset triggerTime = acquiredTriggers[0].GetNextFireTimeUtc().Value;
+                            DateTimeOffset triggerTime = acquiredTriggers[0].GetNextFireTimeUtc().GetValueOrDefault();
 #endif
                             TimeSpan timeUntilTrigger = triggerTime - now;
 
@@ -432,7 +438,7 @@ namespace Quartz.Core
                             }
                             else
                             {
-                                bndles = Array.Empty<TriggerFiredResult>(); ;
+                                continue;
                             }
 
                             for (int i = 0; i < bndles.Count; i++)
@@ -598,7 +604,11 @@ namespace Quartz.Core
                 {
                     earlier = true;
                 }
+#if NOPERF
                 else if (GetSignaledNextFireTimeUtc().Value < oldTimeUtc)
+#else
+                else if (GetSignaledNextFireTimeUtc().GetValueOrDefault() < oldTimeUtc)
+#endif
                 {
                     earlier = true;
                 }

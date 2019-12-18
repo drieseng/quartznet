@@ -124,10 +124,13 @@ namespace Quartz.Util
         /// </summary>
         public override void PutAll(IDictionary<string, object> map)
         {
-            foreach (KeyValuePair<string, object> pair in map)
+            if (map.Count > 0)
             {
-                Put(pair.Key, pair.Value);
-                // will throw ArgumentException if value not serializable
+                foreach (KeyValuePair<string, object> pair in map)
+                {
+                    Put(pair.Key, pair.Value);
+                    // will throw ArgumentException if value not serializable
+                }
             }
         }
 

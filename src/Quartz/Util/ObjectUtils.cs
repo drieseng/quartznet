@@ -23,7 +23,9 @@ using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
+#if NOPERF
 using System.Linq;
+#endif
 using System.Reflection;
 
 namespace Quartz.Util
@@ -205,7 +207,11 @@ namespace Quartz.Util
 
         public static TimeSpan GetTimeSpanValueForProperty(PropertyInfo pi, object value)
         {
+#if NOPERF
             object[] attributes = pi.GetCustomAttributes(typeof(TimeSpanParseRuleAttribute), false).ToArray();
+#else
+            object[] attributes = pi.GetCustomAttributes(typeof(TimeSpanParseRuleAttribute), false);
+#endif
 
             if (attributes.Length == 0)
             {
@@ -231,7 +237,12 @@ namespace Quartz.Util
 
         public static bool IsAttributePresent(Type typeToExamine, Type attributeType)
         {
+#if NOPERF
             return typeToExamine.GetTypeInfo().GetCustomAttributes(attributeType, true).Any();
+#else
+            var attributes = typeToExamine.GetCustomAttributes(attributeType, true);
+            return attributes.Length > 0;
+#endif
         }
     }
 }

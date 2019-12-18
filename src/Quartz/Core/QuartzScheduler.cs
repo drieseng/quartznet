@@ -73,7 +73,9 @@ namespace Quartz.Core
         private readonly List<ISchedulerListener> internalSchedulerListeners = new List<ISchedulerListener>(10);
 
         private IJobFactory jobFactory = new PropertySettingJobFactory();
+#if NOPERF
         private readonly ExecutingJobsManager jobMgr;
+#endif
         private readonly QuartzRandom random = new QuartzRandom();
         private readonly List<object> holdToPreventGc = new List<object>(5);
         private volatile bool closed;
@@ -86,7 +88,7 @@ namespace Quartz.Core
         /// </summary>
         static QuartzScheduler()
         {
-            var asm = typeof (QuartzScheduler).GetTypeInfo().Assembly;
+            var asm = typeof(QuartzScheduler).GetTypeInfo().Assembly;
             version = asm.GetName().Version;
         }
 
@@ -175,6 +177,7 @@ namespace Quartz.Core
 
         public virtual bool IsStarted => !shuttingDown && !closed && !InStandbyMode && initialStart != null;
 
+#if NOPERF
         /// <summary>
         /// Return a list of <see cref="ICancellableJobExecutionContext" /> objects that
         /// represent all currently executing Jobs in this Scheduler instance.
@@ -189,6 +192,9 @@ namespace Quartz.Core
         /// </para>
         /// </summary>
         public virtual IReadOnlyCollection<IJobExecutionContext> CurrentlyExecutingJobs => jobMgr.ExecutingJobs;
+#else
+        public virtual IReadOnlyCollection<IJobExecutionContext> CurrentlyExecutingJobs => new List<IJobExecutionContext>();
+#endif
 
         /// <summary>
         /// Register the given <see cref="ISchedulerListener" /> with the
@@ -280,10 +286,12 @@ namespace Quartz.Core
                 schedThread.IdleWaitTime = idleWaitTime;
             }
 
+#if NOPERF
             jobMgr = new ExecutingJobsManager();
             AddInternalJobListener(jobMgr);
             var errLogger = new ErrorLogger();
             AddInternalSchedulerListener(errLogger);
+#endif
 
             SchedulerSignaler = new SchedulerSignalerImpl(this, schedThread);
 
@@ -428,11 +436,19 @@ namespace Quartz.Core
         /// <value>The running since.</value>
         public virtual DateTimeOffset? RunningSince => initialStart;
 
+#if NOPERF
         /// <summary>
         /// Gets the number of jobs executed.
         /// </summary>
         /// <value>The number of jobs executed.</value>
         public virtual int NumJobsExecuted => jobMgr.NumJobsFired;
+#else
+        /// <summary>
+        /// Gets the number of jobs executed.
+        /// </summary>
+        /// <value>The number of jobs executed.</value>
+        public virtual int NumJobsExecuted => 0;
+#endif
 
         /// <summary>
         /// Gets a value indicating whether this scheduler supports persistence.
@@ -582,7 +598,7 @@ namespace Quartz.Core
                 throw new SchedulerException("Job's class cannot be null");
             }
 
-            IOperableTrigger trig = (IOperableTrigger) trigger;
+            IOperableTrigger trig = (IOperableTrigger)trigger;
 
             if (trigger.JobKey == null)
             {
@@ -636,7 +652,7 @@ namespace Quartz.Core
                 throw new SchedulerException("Trigger cannot be null");
             }
 
-            IOperableTrigger trig = (IOperableTrigger) trigger;
+            IOperableTrigger trig = (IOperableTrigger)trigger;
             trig.Validate();
 
             ICalendar cal = null;
@@ -776,7 +792,7 @@ namespace Quartz.Core
                 }
                 foreach (var t in triggers)
                 {
-                    var trigger = (IOperableTrigger) t;
+                    var trigger = (IOperableTrigger)t;
                     trigger.JobKey = job.Key;
 
                     trigger.Validate();
@@ -892,7 +908,7 @@ namespace Quartz.Core
                 throw new ArgumentException("newTrigger cannot be null");
             }
 
-            var trigger = (IOperableTrigger) newTrigger;
+            var trigger = (IOperableTrigger)newTrigger;
             ITrigger oldTrigger = await GetTrigger(triggerKey, cancellationToken).ConfigureAwait(false);
             if (oldTrigger == null)
             {
@@ -912,7 +928,7 @@ namespace Quartz.Core
             if (trigger.GetNextFireTimeUtc() != null)
             {
                 // use a cloned trigger so that we don't lose possible forcefully set next fire time
-                var clonedTrigger = (IOperableTrigger) trigger.Clone();
+                var clonedTrigger = (IOperableTrigger)trigger.Clone();
                 ft = clonedTrigger.ComputeFirstFireTimeUtc(cal);
             }
             else
@@ -1569,40 +1585,72 @@ namespace Quartz.Core
             }
         }
 
+#if NOPERF
         private List<ITriggerListener> BuildTriggerListenerList()
         {
-#if NOPERF
             var listeners = new List<ITriggerListener>();
             listeners.AddRange(ListenerManager.GetTriggerListeners());
             listeners.AddRange(InternalTriggerListeners);
+            return listeners;
+        }
 #else
+        private ITriggerListener[] BuildTriggerListenerList()
+        {
             var triggerListeners = ListenerManager.GetTriggerListeners();
             var internalTriggerListenersValues = internalTriggerListeners.Values;
 
-            var listeners = new List<ITriggerListener>(triggerListeners.Count + internalTriggerListenersValues.Count);
-            listeners.AddRange(triggerListeners);
-            listeners.AddRange(internalTriggerListenersValues);
-#endif
+            var listeners = new ITriggerListener[triggerListeners.Count + internalTriggerListenersValues.Count];
+            var index = 0;
+            foreach (var triggerListener in triggerListeners)
+            {
+                listeners[index++] = triggerListener;
+            }
+            foreach (var triggerListener in internalTriggerListenersValues)
+            {
+                listeners[index++] = triggerListener;
+            }
             return listeners;
         }
+#endif
 
+#if NOPERF
         private List<IJobListener> BuildJobListenerList()
         {
-#if NOPERF
+
             var listeners = new List<IJobListener>();
             listeners.AddRange(ListenerManager.GetJobListeners());
             listeners.AddRange(InternalJobListeners);
+            return listeners;
+        }
 #else
+        private IJobListener[] BuildJobListenerList()
+        {
             var jobListeners = ListenerManager.GetJobListeners();
             var internalJobListeners2 = internalJobListeners.Values;
 
-            var listeners = new List<IJobListener>(jobListeners.Count + internalJobListeners.Count);
-            listeners.AddRange(jobListeners);
-            listeners.AddRange(internalJobListeners2);
-#endif
+            var listeners = new IJobListener[jobListeners.Count + internalJobListeners.Count];
+            var index = 0;
+
+            if (jobListeners.Count > 0)
+            {
+                foreach (var jobListener in jobListeners)
+                {
+                    listeners[index++] = jobListener;
+                }
+            }
+
+            if (internalJobListeners2.Count > 0)
+            {
+                foreach (var jobListener in internalJobListeners2)
+                {
+                    listeners[index++] = jobListener;
+                }
+            }
             return listeners;
         }
+#endif
 
+#if NOPERF
         private List<ISchedulerListener> BuildSchedulerListenerList()
         {
             var allListeners = new List<ISchedulerListener>();
@@ -1610,6 +1658,29 @@ namespace Quartz.Core
             allListeners.AddRange(InternalSchedulerListeners);
             return allListeners;
         }
+#else
+        private ISchedulerListener[] BuildSchedulerListenerList()
+        {
+            var managerSchedulerListeners = ListenerManager.GetSchedulerListeners();
+            var instanceSchedulerListeners = InternalSchedulerListeners;
+
+            var allListeners = new ISchedulerListener[managerSchedulerListeners.Count + instanceSchedulerListeners.Count];
+            var index = 0;
+            if (managerSchedulerListeners.Count > 0)
+            {
+                foreach (var schedulerListener in managerSchedulerListeners)
+                {
+                    allListeners[index++] = schedulerListener;
+                }
+            }
+
+            foreach (var schedulerListener in instanceSchedulerListeners)
+            {
+                allListeners[index++] = schedulerListener;
+            }
+            return allListeners;
+        }
+#endif
 
         private bool MatchJobListener(IJobListener listener, JobKey key)
         {
@@ -1669,7 +1740,7 @@ namespace Quartz.Core
             foreach (ITriggerListener tl in listeners)
             {
 #else
-            for (var i = 0; i < listeners.Count; i++)
+            for (var i = 0; i < listeners.Length; i++)
             {
                 ITriggerListener tl = listeners[i];
 #endif
@@ -1714,7 +1785,7 @@ namespace Quartz.Core
             foreach (ITriggerListener tl in listeners)
             {
 #else
-            for (var i = 0; i < listeners.Count; i++)
+            for (var i = 0; i < listeners.Length; i++)
             {
                 ITriggerListener tl = listeners[i];
 #endif
@@ -1754,7 +1825,7 @@ namespace Quartz.Core
             foreach (ITriggerListener tl in listeners)
             {
 #else
-            for (var i = 0; i < listeners.Count; i++)
+            for (var i = 0; i < listeners.Length; i++)
             {
                 ITriggerListener tl = listeners[i];
 #endif
@@ -1795,7 +1866,7 @@ namespace Quartz.Core
             var listeners = BuildJobListenerList();
 
             // notify all job listeners
-            for (var i = 0; i < listeners.Count; i++)
+            for (var i = 0; i < listeners.Length; i++)
             {
                 IJobListener jl = listeners[i];
 #endif
@@ -1833,7 +1904,7 @@ namespace Quartz.Core
             foreach (IJobListener jl in listeners)
             {
 #else
-            for (var i = 0; i < listeners.Count; i++)
+            for (var i = 0; i < listeners.Length; i++)
             {
                 IJobListener jl = listeners[i];
 #endif
@@ -1876,7 +1947,7 @@ namespace Quartz.Core
             var listeners = BuildJobListenerList();
 
             // notify all job listeners
-            for (var i = 0; i < listeners.Count; i++)
+            for (var i = 0; i < listeners.Length; i++)
             {
                 IJobListener jl = listeners[i];
 #endif
@@ -1909,7 +1980,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all scheduler listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -1946,7 +2021,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all scheduler listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -1994,7 +2073,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -2018,7 +2101,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -2054,7 +2141,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -2078,7 +2169,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -2102,7 +2197,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -2126,7 +2225,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)
@@ -2150,7 +2253,11 @@ namespace Quartz.Core
             CancellationToken cancellationToken = default)
         {
             // build a list of all job listeners that are to be notified...
+#if NOPERF
             IEnumerable<ISchedulerListener> schedListeners = BuildSchedulerListenerList();
+#else
+            var schedListeners = BuildSchedulerListenerList();
+#endif
 
             // notify all scheduler listeners
             foreach (ISchedulerListener sl in schedListeners)

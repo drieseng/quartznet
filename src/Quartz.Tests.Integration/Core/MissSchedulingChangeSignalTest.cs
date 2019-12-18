@@ -98,7 +98,11 @@ namespace Quartz.Tests.Integration.Core
     /// </summary>
     public class SlowRAMJobStore : RAMJobStore
     {
+#if NOPERF
         public override async Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
+#else
+        public override async Task<IReadOnlyList<IOperableTrigger>> AcquireNextTriggers(
+#endif
             DateTimeOffset noLaterThan, 
             int maxCount, 
             TimeSpan timeWindow,

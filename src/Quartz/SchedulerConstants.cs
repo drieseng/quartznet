@@ -98,6 +98,10 @@ namespace Quartz
         /// A special date time to check against when signaling scheduling change when the signaled fire date suggestion is actually irrelevant.
         /// We only want to signal the change.
         /// </summary>
+#if NOPERF
         internal static DateTimeOffset? SchedulingSignalDateTime = new DateTimeOffset(1982, 6, 28, 0, 0, 0, TimeSpan.FromSeconds(0));
+#else
+        internal static DateTimeOffset SchedulingSignalDateTime = new DateTimeOffset(1982, 6, 28, 0, 0, 0, TimeSpan.Zero);
+#endif
     }
 }
