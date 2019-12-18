@@ -334,7 +334,7 @@ namespace Quartz.Impl.Triggers
 			{
                 DateTimeOffset sTime = StartTimeUtc;
 
-				if (value.HasValue && sTime > value.Value)
+				if (value.HasValue && sTime > value.GetValueOrDefault())
 				{
 					throw new ArgumentException("End time cannot be before start time");
 				}
@@ -360,7 +360,7 @@ namespace Quartz.Impl.Triggers
 
 		    set
 			{
-				if (EndTimeUtc.HasValue && EndTimeUtc.Value < value)
+				if (EndTimeUtc.HasValue && EndTimeUtc.GetValueOrDefault() < value)
 				{
 					throw new ArgumentException("End time cannot be before start time");
 				}

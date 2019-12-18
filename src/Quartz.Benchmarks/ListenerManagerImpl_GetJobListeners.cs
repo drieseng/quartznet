@@ -20,10 +20,12 @@ namespace Quartz.Benchmarks
 
             _smallListenerManager = new ListenerManagerImpl();
             _smallListenerManager.AddJobListener(new BroadcastJobListener("A"));
+            /*
             _smallListenerManager.AddJobListener(new BroadcastJobListener("B"));
             _smallListenerManager.AddJobListener(new BroadcastJobListener("C"));
             _smallListenerManager.AddJobListener(new BroadcastJobListener("D"));
             _smallListenerManager.AddJobListener(new BroadcastJobListener("E"));
+            */
 
             _largeListenerManager = new ListenerManagerImpl();
             foreach (var i in Enumerable.Range(1, 200))
@@ -33,33 +35,22 @@ namespace Quartz.Benchmarks
         }
 
         [Benchmark]
-        public IReadOnlyCollection<IJobListener> Empty_Old()
+        public IReadOnlyCollection<IJobListener> Empty()
         {
             return _emptyistenerManager.GetJobListeners();
         }
 
         [Benchmark]
-        public IReadOnlyCollection<IJobListener> Empty_New()
-        {
-            return _emptyistenerManager.GetJobListenersNew();
-        }
-
-        [Benchmark]
-        public IReadOnlyCollection<IJobListener> Small_Old()
+        public IReadOnlyCollection<IJobListener> Small()
         {
             return _smallListenerManager.GetJobListeners();
         }
 
-        [Benchmark]
-        public IReadOnlyCollection<IJobListener> Small_New()
-        {
-            return _smallListenerManager.GetJobListenersNew();
-        }
-
+        /*
         [Benchmark]
         public IReadOnlyCollection<IJobListener> Large_Old()
         {
-            return _largeListenerManager.GetJobListeners();
+            return _largeListenerManager.GetJobListenersOld();
         }
 
         [Benchmark]
@@ -67,5 +58,6 @@ namespace Quartz.Benchmarks
         {
             return _largeListenerManager.GetJobListenersNew();
         }
+        */
     }
 }

@@ -82,8 +82,13 @@ namespace Quartz.Impl
         private int numRefires;
         private TimeSpan? jobRunTime;
 
+#if NOPERF
         [NonSerialized]
         private readonly Dictionary<object, object> data = new Dictionary<object, object>();
+#else
+        [NonSerialized]
+        private Dictionary<object, object> data;
+#endif
         [NonSerialized]
         private readonly CancellationTokenSource cancellationTokenSource;
         [NonSerialized]
@@ -319,6 +324,12 @@ namespace Quartz.Impl
         /// </param>
         public virtual void Put(object key, object objectValue)
         {
+#if !NOPERF
+            if (data == null)
+            {
+                data = new Dictionary<object, object>();
+            }
+#endif
             data[key] = objectValue;
         }
 
@@ -329,6 +340,13 @@ namespace Quartz.Impl
         /// </param>
         public virtual object Get(object key)
         {
+#if !NOPERF
+            if (data == null)
+            {
+                return null;
+            }
+#endif
+
             data.TryGetValue(key, out var retValue);
             return retValue;
         }

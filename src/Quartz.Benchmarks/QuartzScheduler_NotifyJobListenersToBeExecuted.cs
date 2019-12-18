@@ -41,7 +41,7 @@ namespace Quartz.Benchmarks
             _quartzScheduler.Start();
         }
 
-        [Benchmark(OperationsPerInvoke = _iterationCount)]
+        //[Benchmark(OperationsPerInvoke = _iterationCount)]
         public void XX()
         {
             Job.Reset();
@@ -51,7 +51,7 @@ namespace Quartz.Benchmarks
             _quartzScheduler.DeleteJob(_jobDetail.Key);
         }
 
-        //[Benchmark]
+        [Benchmark]
         public void Singular()
         {
             SingularJob.Reset();

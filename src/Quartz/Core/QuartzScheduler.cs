@@ -1601,20 +1601,29 @@ namespace Quartz.Core
 
             var listeners = new ITriggerListener[triggerListeners.Count + internalTriggerListenersValues.Count];
             var index = 0;
-            foreach (var triggerListener in triggerListeners)
+
+            if (triggerListeners.Count > 0)
             {
-                listeners[index++] = triggerListener;
+                foreach (var triggerListener in triggerListeners)
+                {
+                    listeners[index++] = triggerListener;
+                }
             }
-            foreach (var triggerListener in internalTriggerListenersValues)
+
+            if (internalTriggerListenersValues.Count > 0)
             {
-                listeners[index++] = triggerListener;
+                foreach (var triggerListener in internalTriggerListenersValues)
+                {
+                    listeners[index++] = triggerListener;
+                }
             }
+
             return listeners;
         }
 #endif
 
 #if NOPERF
-        private List<IJobListener> BuildJobListenerList()
+        public List<IJobListener> BuildJobListenerList()
         {
 
             var listeners = new List<IJobListener>();
@@ -1623,7 +1632,8 @@ namespace Quartz.Core
             return listeners;
         }
 #else
-        private IJobListener[] BuildJobListenerList()
+#if true
+        public IJobListener[] BuildJobListenerList()
         {
             var jobListeners = ListenerManager.GetJobListeners();
             var internalJobListeners2 = internalJobListeners.Values;
@@ -1646,8 +1656,21 @@ namespace Quartz.Core
                     listeners[index++] = jobListener;
                 }
             }
+
             return listeners;
         }
+#else
+        public List<IJobListener> BuildJobListenerList()
+        {
+            var jobListeners = ListenerManager.GetJobListeners();
+            var internalJobListeners2 = internalJobListeners.Values;
+
+            var listeners = new List<IJobListener>(jobListeners.Count + internalJobListeners.Count);
+            listeners.AddRange(jobListeners);
+            listeners.AddRange(internalJobListeners2);
+            return listeners;
+        }
+#endif
 #endif
 
 #if NOPERF
@@ -1666,6 +1689,7 @@ namespace Quartz.Core
 
             var allListeners = new ISchedulerListener[managerSchedulerListeners.Count + instanceSchedulerListeners.Count];
             var index = 0;
+
             if (managerSchedulerListeners.Count > 0)
             {
                 foreach (var schedulerListener in managerSchedulerListeners)
@@ -1674,10 +1698,14 @@ namespace Quartz.Core
                 }
             }
 
-            foreach (var schedulerListener in instanceSchedulerListeners)
+            if (instanceSchedulerListeners.Count > 0)
             {
-                allListeners[index++] = schedulerListener;
+                foreach (var schedulerListener in instanceSchedulerListeners)
+                {
+                    allListeners[index++] = schedulerListener;
+                }
             }
+
             return allListeners;
         }
 #endif

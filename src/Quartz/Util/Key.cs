@@ -193,17 +193,10 @@ namespace Quartz.Util
 
             if (name == null)
             {
-                if (other.name != null)
-                {
-                    return false;
-                }
-            }
-            else if (!name.Equals(other.name))
-            {
-                return false;
+                return other.name == null;
             }
 
-            return true;
+            return name.Equals(other.name);
         }
 #endif
     }

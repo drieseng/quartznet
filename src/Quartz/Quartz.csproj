@@ -5,7 +5,7 @@
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
-    <DefineConstants>TRACE;APPCONTEXT;NETSTANDARD_DBPROVIDERS;NOPERF</DefineConstants>
+    <DefineConstants>TRACE;APPCONTEXT;NETSTANDARD_DBPROVIDERS</DefineConstants>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>

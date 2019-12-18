@@ -170,9 +170,9 @@ namespace Quartz.Util
             return copy;
         }
 
-        #endregion
+#endregion
 
-        #region IDictionary Members
+#region IDictionary Members
 
         public bool TryGetValue(TKey key, out TValue value)
         {
@@ -421,7 +421,7 @@ namespace Quartz.Util
         /// <value></value>
         public virtual bool IsSynchronized => false;
 
-        #endregion
+#endregion
 
         /// <summary>
         /// Clear the 'dirty' flag (set dirty flag to <see langword="false" />).

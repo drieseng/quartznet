@@ -67,7 +67,11 @@ namespace Quartz
         /// <summary>
         /// Create an empty <see cref="JobDataMap" />.
         /// </summary>
+#if NOPERF
         public JobDataMap() : base(15)
+#else
+        public JobDataMap() : base(0)
+#endif
         {
         }
 

@@ -264,13 +264,14 @@ namespace Quartz.Impl.Triggers
                 {
                     return StartTimeUtc;
                 }
-                if (repeatCount == RepeatIndefinitely && !EndTimeUtc.HasValue)
-                {
-                    return null;
-                }
                 if (repeatCount == RepeatIndefinitely)
                 {
-                    return GetFireTimeBefore(EndTimeUtc);
+                    if (!EndTimeUtc.HasValue)
+                    {
+                        return null;
+                    }
+
+                    return GetFireTimeBefore(EndTimeUtc.GetValueOrDefault());
                 }
 
 #if TICKS
@@ -353,7 +354,6 @@ namespace Quartz.Impl.Triggers
 				else if (RepeatCount == RepeatIndefinitely)
 				{
                     instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount;
-
 				}
 				else
 				{
@@ -691,8 +691,7 @@ namespace Quartz.Impl.Triggers
 #else
             DateTimeOffset afterMillis = afterTimeUtc.GetValueOrDefault();
 #endif
-            DateTimeOffset endMillis = EndTimeUtc ?? DateTimeOffset.MaxValue;
-
+            DateTimeOffset endMillis = EndTimeUtc.GetValueOrDefault(DateTimeOffset.MaxValue);
 
 			if (endMillis <= afterMillis)
 			{
@@ -707,7 +706,7 @@ namespace Quartz.Impl.Triggers
 #if TICKS
             long numberOfTimesExecuted = (long)((long)(afterMillis - startMillis).Ticks / repeatInterval.Ticks + 1);
 #else
-            long numberOfTimesExecuted = (long) ((long) (afterMillis - startMillis).TotalMilliseconds / repeatInterval.TotalMilliseconds + 1);
+            long numberOfTimesExecuted = (long)((long) (afterMillis - startMillis).TotalMilliseconds / repeatInterval.TotalMilliseconds + 1);
 #endif
 
             if (numberOfTimesExecuted > repeatCount &&
@@ -727,7 +726,6 @@ namespace Quartz.Impl.Triggers
 				return null;
 			}
 
-
 			return time;
 		}
 
@@ -738,7 +736,7 @@ namespace Quartz.Impl.Triggers
 		/// </summary>
         public virtual DateTimeOffset? GetFireTimeBefore(DateTimeOffset? endUtc)
 		{
-			if (endUtc.Value < StartTimeUtc)
+			if (endUtc.GetValueOrDefault() < StartTimeUtc)
 			{
 				return null;
 			}
