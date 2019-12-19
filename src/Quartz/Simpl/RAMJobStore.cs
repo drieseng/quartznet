@@ -1756,79 +1756,31 @@ namespace Quartz.Simpl
         {
             lock (lockObject)
             {
-#if !NOPERF
+#if NOPERF
                 var result = new List<IOperableTrigger>();
-//                Console.WriteLine("NOPERF");
-#else
-//                Console.WriteLine("PERF");
-#endif // !NOPERF
+                var acquiredJobKeysForNoConcurrentExec = new HashSet<JobKey>();
+                DateTimeOffset batchEnd = noLaterThan;
 
                 // return empty list if store has no triggers.
                 if (timeTriggers.Count == 0)
                 {
-#if NOPERF
                     return Task.FromResult<IReadOnlyCollection<IOperableTrigger>>(result);
-#else
-                    return Task.FromResult(EmptyListOfOperableTriggers);
-#endif // NOPERF
                 }
 
-#if !NOPERF
                 var excludedTriggers = new HashSet<TriggerWrapper>();
-#else
-                var result = new List<IOperableTrigger>();
-#endif // NOPERF
-
-                var acquiredJobKeysForNoConcurrentExec = new HashSet<JobKey>();
-                DateTimeOffset batchEnd = noLaterThan;
 
                 while (true)
                 {
-#if NOPERF
                     var tw = timeTriggers.FirstOrDefault();
-#else
-                    var tw = timeTriggers.Min;
-#endif
                     if (tw == null)
                     {
                         break;
                     }
 
-#if !NOPERF
                     if (!timeTriggers.Remove(tw))
                     {
                         break;
                     }
-#else
-                    JobKey jobKey = tw.Trigger.JobKey;
-                    IJobDetail job = jobsByKey[jobKey].JobDetail;
-
-                    Console.WriteLine("timeTriggers count: " + timeTriggers.Count);
-
-                    if (job.ConcurrentExecutionDisallowed)
-                    {
-                        if (acquiredJobKeysForNoConcurrentExec.Add(jobKey))
-                        {
-                            Console.WriteLine("Added to acquiredJobKeysForNoConcurrentExec: " + jobKey.ToString());
-                            if (!timeTriggers.Remove(tw))
-                            {
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine("Alreadt in acquiredJobKeysForNoConcurrentExec: " + jobKey.ToString());
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        if (!timeTriggers.Remove(tw))
-                        {
-                            break;
-                        }
-                    }
-#endif
 
                     if (tw.Trigger.GetNextFireTimeUtc() == null)
                     {
@@ -1850,7 +1802,6 @@ namespace Quartz.Simpl
                         break;
                     }
 
-#if !NOPERF
                     // If trigger's job is set as @DisallowConcurrentExecution, and it has already been added to result, then
                     // put it back into the timeTriggers set and continue to search for next trigger.
                     JobKey jobKey = tw.Trigger.JobKey;
@@ -1863,7 +1814,6 @@ namespace Quartz.Simpl
                             continue; // go to next trigger in store.
                         }
                     }
-#endif
 
                     tw.state = InternalTriggerState.Acquired;
                     tw.Trigger.FireInstanceId = GetFiredTriggerRecordId();
@@ -1886,7 +1836,6 @@ namespace Quartz.Simpl
                     }
                 }
 
-#if NOPERF
                 // If we did excluded triggers to prevent ACQUIRE state due to DisallowConcurrentExecution, we need to add them back to store.
                 if (excludedTriggers.Count > 0)
                 {
@@ -1898,6 +1847,126 @@ namespace Quartz.Simpl
 
                 return Task.FromResult<IReadOnlyCollection<IOperableTrigger>>(result);
 #else
+                // return empty list if store has no triggers.
+                if (timeTriggers.Count == 0)
+                {
+                    return Task.FromResult(EmptyListOfOperableTriggers);
+                }
+
+                var result = new List<IOperableTrigger>();
+                var excludedTriggers = new HashSet<TriggerWrapper>();
+                var acquiredJobKeysForNoConcurrentExec = new HashSet<JobKey>();
+                DateTimeOffset batchEnd = noLaterThan;
+
+                while (true)
+                {
+                    /*
+                    var tw = timeTriggers.Min;
+                    */
+                    var tw = timeTriggers.FirstOrDefault();
+
+                    if (tw == null)
+                    {
+                        break;
+                    }
+
+                    if (!timeTriggers.Remove(tw))
+                    {
+                        Console.WriteLine("NOT IN TRIGGERS LIST");
+                        break;
+                    }
+
+                    if (tw.Trigger.GetNextFireTimeUtc() == null)
+                    {
+                        continue;
+                    }
+
+                    if (ApplyMisfire(tw))
+                    {
+                        if (tw.Trigger.GetNextFireTimeUtc() != null)
+                        {
+                            timeTriggers.Add(tw);
+                        }
+                        continue;
+                    }
+
+                    if (tw.Trigger.GetNextFireTimeUtc() > batchEnd)
+                    {
+                        timeTriggers.Add(tw);
+                        break;
+                    }
+
+                    /*
+                    if (tw.Trigger.GetNextFireTimeUtc() == null)
+                    {
+                        timeTriggers.Remove(tw);
+                        continue;
+                    }
+
+                    if (ApplyMisfire(tw))
+                    {
+                        if (tw.Trigger.GetNextFireTimeUtc() == null)
+                        {
+                            timeTriggers.Remove(tw);
+                        }
+                        continue;
+                    }
+
+                    if (!timeTriggers.Remove(tw))
+                    {
+                        break;
+                    }
+
+                    if (tw.Trigger.GetNextFireTimeUtc() > batchEnd)
+                    {
+                        break;
+                    }
+                    */
+
+                    JobKey jobKey = tw.Trigger.JobKey;
+                    IJobDetail job = jobsByKey[jobKey].JobDetail;
+
+                    //Console.WriteLine("timeTriggers count: " + timeTriggers.Count);
+
+                    if (job.ConcurrentExecutionDisallowed)
+                    {
+                        if (!acquiredJobKeysForNoConcurrentExec.Add(jobKey))
+                        {
+                            excludedTriggers.Add(tw);
+                            continue; // go to next trigger in store.
+                        }
+                    }
+
+                    tw.state = InternalTriggerState.Acquired;
+                    tw.Trigger.FireInstanceId = GetFiredTriggerRecordId();
+                    IOperableTrigger trig = (IOperableTrigger) tw.Trigger.Clone();
+
+                    if (result.Count == 0)
+                    {
+                        var now = SystemTime.UtcNow();
+                        var nextFireTime = tw.Trigger.GetNextFireTimeUtc().GetValueOrDefault(DateTimeOffset.MinValue);
+                        var max = now > nextFireTime ? now : nextFireTime;
+
+                        batchEnd = max + timeWindow;
+                    }
+
+                    result.Add(trig);
+
+                    if (result.Count == maxCount)
+                    {
+                        break;
+                    }
+                }
+
+                // If we did excluded triggers to prevent ACQUIRE state due to DisallowConcurrentExecution, we need to add them back to store.
+                if (excludedTriggers.Count > 0)
+                {
+                    foreach (var excludedTrigger in excludedTriggers)
+                    {
+                        timeTriggers.Add(excludedTrigger);
+                    }
+                }
+
                 return Task.FromResult<IReadOnlyList<IOperableTrigger>>(result);
 #endif
             }

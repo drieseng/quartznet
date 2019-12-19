@@ -60,7 +60,7 @@ namespace Quartz.Benchmarks
             _quartzScheduler.DeleteJob(_singularJobDetail.Key);
         }
 
-        [Benchmark]
+        [Benchmark(OperationsPerInvoke =ParallelJob.IterationCount)]
         public void Parallel()
         {
             DirectSchedulerFactory.Instance.CreateScheduler("Parallel", "Parallel", new DefaultThreadPool(), new RAMJobStore());
@@ -71,7 +71,7 @@ namespace Quartz.Benchmarks
             _waitHandle.Reset();
 
             var parallelCount = 10;
-            var jobsPerThread = (int) (ParallelJob.IterationCount / parallelCount);
+            var jobsPerThread = ParallelJob.IterationCount / parallelCount;
             
             for (var i = 0; i < parallelCount; i++)
             {
@@ -82,7 +82,7 @@ namespace Quartz.Benchmarks
 
             _waitHandle.WaitOne();
 
-            Console.WriteLine("DONE");
+            //Console.WriteLine("DONE");
 
             quartzScheduler.Shutdown(true).GetAwaiter().GetResult();
         }
@@ -120,7 +120,7 @@ namespace Quartz.Benchmarks
         [DisallowConcurrentExecution]
         private class ParallelJob : IJob
         {
-            public const long IterationCount = 500_000;
+            public const int IterationCount = 500_000;
             private static long _counter = 0;
 
             public static void Reset()

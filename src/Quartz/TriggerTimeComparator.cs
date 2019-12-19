@@ -18,6 +18,7 @@ namespace Quartz
             DateTimeOffset? t1 = trig1.GetNextFireTimeUtc();
             DateTimeOffset? t2 = trig2.GetNextFireTimeUtc();
 
+#if NOPERF
             if (t1 != null || t2 != null)
             {
                 if (t1 == null)
@@ -40,6 +41,30 @@ namespace Quartz
                     return 1;
                 }
             }
+#else
+            if (t1.HasValue || t2.HasValue)
+            {
+                if (!t1.HasValue)
+                {
+                    return 1;
+                }
+
+                if (!t2.HasValue)
+                {
+                    return -1;
+                }
+
+                if (t1.GetValueOrDefault() < t2.GetValueOrDefault())
+                {
+                    return -1;
+                }
+
+                if (t1.GetValueOrDefault() > t2.GetValueOrDefault())
+                {
+                    return 1;
+                }
+            }
+#endif
 
             int comp = trig2.Priority - trig1.Priority;
             if (comp != 0)
