@@ -1,12 +1,8 @@
 ﻿using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Diagnostics.Windows.Configs;
-using Quartz.Core;
 using Quartz.Impl;
 using Quartz.Impl.Triggers;
 using Quartz.Simpl;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,7 +16,7 @@ namespace Quartz.Benchmarks
         private ManualResetEvent _waitHandle;
         private JobDetailImpl _jobDetail;
         private JobDetailImpl _singularJobDetail;
-
+        private JobDetailImpl _parallelJobDetail;
         private const int _iterationCount = 1000;
 
         [GlobalSetup]
@@ -37,6 +33,9 @@ namespace Quartz.Benchmarks
 
             _singularJobDetail = new JobDetailImpl("singular", typeof(SingularJob));
             _singularJobDetail.JobDataMap.Add("waitHandle", _waitHandle);
+
+            _parallelJobDetail = new JobDetailImpl("parallel", typeof(ParallelJob));
+            _parallelJobDetail.JobDataMap.Add("waitHandle", _waitHandle);
 
             _quartzScheduler.Start();
         }
@@ -59,6 +58,38 @@ namespace Quartz.Benchmarks
             _quartzScheduler.ScheduleJob(_singularJobDetail, new SimpleTriggerImpl(_singularJobDetail.Key.Name, 0, TimeSpan.FromTicks(1)));
             _waitHandle.WaitOne();
             _quartzScheduler.DeleteJob(_singularJobDetail.Key);
+        }
+
+        [Benchmark]
+        public void Parallel()
+        {
+            DirectSchedulerFactory.Instance.CreateScheduler("Parallel", "Parallel", new DefaultThreadPool(), new RAMJobStore());
+            var quartzScheduler = DirectSchedulerFactory.Instance.GetScheduler("Parallel", CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
+            quartzScheduler.JobFactory = new SimpleJobFactory();
+
+            ParallelJob.Reset();
+            _waitHandle.Reset();
+
+            var parallelCount = 10;
+            var jobsPerThread = (int) (ParallelJob.IterationCount / parallelCount);
+            
+            for (var i = 0; i < parallelCount; i++)
+            {
+                quartzScheduler.ScheduleJob(CreateParallelJob(_waitHandle), new SimpleTriggerImpl("P" + i, jobsPerThread, TimeSpan.FromTicks(1)));
+            }
+
+            quartzScheduler.Start();
+
+            _waitHandle.WaitOne();
+
+            quartzScheduler.Shutdown(true).GetAwaiter().GetResult();
+        }
+
+        private static IJobDetail CreateParallelJob(ManualResetEvent waitHandle)
+        {
+            var job = new JobDetailImpl(Guid.NewGuid().ToString(), typeof(ParallelJob));
+            job.JobDataMap.Add("waitHandle", waitHandle);
+            return job;
         }
 
         [DisallowConcurrentExecution]
@@ -85,6 +116,30 @@ namespace Quartz.Benchmarks
         }
 
         [DisallowConcurrentExecution]
+        private class ParallelJob : IJob
+        {
+            public const long IterationCount = 100_000;
+            private static long _counter = 0;
+
+            public static void Reset()
+            {
+                _counter = 0;
+            }
+
+            public Task Execute(IJobExecutionContext context)
+            {
+                var value = Interlocked.Increment(ref _counter);
+                if (value == IterationCount)
+                {
+                    var waitHandle = (ManualResetEvent)context.JobDetail.JobDataMap.Get("waitHandle");
+                    waitHandle.Set();
+                }
+
+                return Task.CompletedTask;
+            }
+        }
+
+        [DisallowConcurrentExecution]
         private class SingularJob : IJob
         {
             private static long _counter = 0;
@@ -97,7 +152,6 @@ namespace Quartz.Benchmarks
             public Task Execute(IJobExecutionContext context)
             {
                 var value = Interlocked.Increment(ref _counter);
-                //Console.WriteLine("EXECUTE: " + value);
                 if (value == 1)
                 {
                     var waitHandle = (ManualResetEvent)context.JobDetail.JobDataMap.Get("waitHandle");

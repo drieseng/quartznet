@@ -33,7 +33,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quartz.Plugins", "src\Quart
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quartz.Plugins.TimeZoneConverter", "src\Quartz.Plugins.TimeZoneConverter\Quartz.Plugins.TimeZoneConverter.csproj", "{88F6D094-A4CD-4B89-84FB-FBD0821A9D99}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quartz.Benchmarks", "src\Quartz.Benchmarks\Quartz.Benchmarks.csproj", "{A890BDBF-0B7E-4B38-A934-48F5BED015CA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quartz.Benchmarks", "src\Quartz.Benchmarks\Quartz.Benchmarks.csproj", "{03F92E0D-2F43-4DD0-8442-4F23EAC462E0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -77,10 +77,10 @@ Global
 		{88F6D094-A4CD-4B89-84FB-FBD0821A9D99}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{88F6D094-A4CD-4B89-84FB-FBD0821A9D99}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{88F6D094-A4CD-4B89-84FB-FBD0821A9D99}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A890BDBF-0B7E-4B38-A934-48F5BED015CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A890BDBF-0B7E-4B38-A934-48F5BED015CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A890BDBF-0B7E-4B38-A934-48F5BED015CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A890BDBF-0B7E-4B38-A934-48F5BED015CA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03F92E0D-2F43-4DD0-8442-4F23EAC462E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03F92E0D-2F43-4DD0-8442-4F23EAC462E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03F92E0D-2F43-4DD0-8442-4F23EAC462E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03F92E0D-2F43-4DD0-8442-4F23EAC462E0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

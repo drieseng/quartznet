@@ -201,10 +201,12 @@ namespace Quartz.Core
                     // Execute the job
                     try
                     {
+#if LOG2
                         if (log.IsDebugEnabled())
                         {
                             log.Debug("Calling Execute on job " + jobDetail.Key);
                         }
+#endif
 
                         await job.Execute(jec).ConfigureAwait(false);
 
@@ -245,10 +247,12 @@ namespace Quartz.Core
                     try
                     {
                         instCode = trigger.ExecutionComplete(jec, jobExEx);
+#if LOG2
                         if (log.IsDebugEnabled())
                         {
                             log.Debug($"Trigger instruction : {instCode}");
                         }
+#endif
                     }
                     catch (Exception e)
                     {

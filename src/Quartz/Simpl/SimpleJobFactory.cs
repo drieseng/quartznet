@@ -61,10 +61,12 @@ namespace Quartz.Simpl
 			Type jobType = jobDetail.JobType;
 			try
 			{
+#if LOG2
 				if (log.IsDebugEnabled())
 				{
 					log.Debug($"Producing instance of Job '{jobDetail.Key}', class={jobType.FullName}");
 				}
+#endif
 
 				return ObjectUtils.InstantiateType<IJob>(jobType);
 			}

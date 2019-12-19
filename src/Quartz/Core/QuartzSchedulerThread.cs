@@ -275,6 +275,7 @@ namespace Quartz.Core
                             acquiredTriggers = await qsRsrcs.JobStore.AcquireNextTriggers(noLaterThan, maxCount, qsRsrcs.BatchTimeWindow, CancellationToken.None).ConfigureAwait(false);
 #endif
                             lastAcquireFailed = false;
+#if LOG2
                             if (Log.IsDebugEnabled())
                             {
 #if NOPERF
@@ -283,6 +284,7 @@ namespace Quartz.Core
                                 Log.DebugFormat("Batch acquisition of {0} triggers", acquiredTriggers?.Count ?? 0);
 #endif
                             }
+#endif
                         }
                         catch (JobPersistenceException jpe)
                         {

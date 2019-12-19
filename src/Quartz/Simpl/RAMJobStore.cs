@@ -2087,20 +2087,33 @@ namespace Quartz.Simpl
                 {
                     if (triggerInstCode == SchedulerInstruction.DeleteTrigger)
                     {
+#if LOG2
                         Log.Debug("Deleting trigger");
+#endif
+
+#if NOPERF
                         DateTimeOffset? d = trigger.GetNextFireTimeUtc();
                         if (!d.HasValue)
+#else
+                        if (!trigger.GetNextFireTimeUtc().HasValue)
+#endif
                         {
                             // double check for possible reschedule within job
                             // execution, which would cancel the need to delete...
+#if NOPERF
                             d = tw.Trigger.GetNextFireTimeUtc();
                             if (!d.HasValue)
+#else
+                            if (!tw.Trigger.GetNextFireTimeUtc().HasValue)
+#endif
                             {
                                 RemoveTriggerInternal(trigger.Key);
                             }
                             else
                             {
+#if LOG2
                                 Log.Debug("Deleting cancelled - trigger still active");
+#endif
                             }
                         }
                         else
@@ -2111,6 +2124,7 @@ namespace Quartz.Simpl
                     }
                     else if (triggerInstCode == SchedulerInstruction.SetTriggerComplete)
                     {
+                        Log.Info($"Trigger {trigger.Key} set to COMPLETE state.");
                         tw.state = InternalTriggerState.Complete;
                         timeTriggers.Remove(tw);
                         signaler.SignalSchedulingChange(null, cancellationToken);
