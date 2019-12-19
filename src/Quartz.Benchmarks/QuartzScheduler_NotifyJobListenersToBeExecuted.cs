@@ -82,6 +82,8 @@ namespace Quartz.Benchmarks
 
             _waitHandle.WaitOne();
 
+            Console.WriteLine("DONE");
+
             quartzScheduler.Shutdown(true).GetAwaiter().GetResult();
         }
 
@@ -118,7 +120,7 @@ namespace Quartz.Benchmarks
         [DisallowConcurrentExecution]
         private class ParallelJob : IJob
         {
-            public const long IterationCount = 100_000;
+            public const long IterationCount = 500_000;
             private static long _counter = 0;
 
             public static void Reset()
@@ -129,6 +131,7 @@ namespace Quartz.Benchmarks
             public Task Execute(IJobExecutionContext context)
             {
                 var value = Interlocked.Increment(ref _counter);
+                //Console.WriteLine(value);
                 if (value == IterationCount)
                 {
                     var waitHandle = (ManualResetEvent)context.JobDetail.JobDataMap.Get("waitHandle");

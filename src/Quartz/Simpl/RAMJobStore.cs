@@ -1756,7 +1756,7 @@ namespace Quartz.Simpl
         {
             lock (lockObject)
             {
-#if NOPERF
+#if !NOPERF
                 var result = new List<IOperableTrigger>();
 //                Console.WriteLine("NOPERF");
 #else
@@ -1773,7 +1773,7 @@ namespace Quartz.Simpl
 #endif // NOPERF
                 }
 
-#if NOPERF
+#if !NOPERF
                 var excludedTriggers = new HashSet<TriggerWrapper>();
 #else
                 var result = new List<IOperableTrigger>();
@@ -1794,7 +1794,7 @@ namespace Quartz.Simpl
                         break;
                     }
 
-#if NOPERF
+#if !NOPERF
                     if (!timeTriggers.Remove(tw))
                     {
                         break;
@@ -1803,10 +1803,13 @@ namespace Quartz.Simpl
                     JobKey jobKey = tw.Trigger.JobKey;
                     IJobDetail job = jobsByKey[jobKey].JobDetail;
 
+                    Console.WriteLine("timeTriggers count: " + timeTriggers.Count);
+
                     if (job.ConcurrentExecutionDisallowed)
                     {
                         if (acquiredJobKeysForNoConcurrentExec.Add(jobKey))
                         {
+                            Console.WriteLine("Added to acquiredJobKeysForNoConcurrentExec: " + jobKey.ToString());
                             if (!timeTriggers.Remove(tw))
                             {
                                 break;
@@ -1814,6 +1817,7 @@ namespace Quartz.Simpl
                         }
                         else
                         {
+                            Console.WriteLine("Alreadt in acquiredJobKeysForNoConcurrentExec: " + jobKey.ToString());
                             continue;
                         }
                     }
@@ -1846,7 +1850,7 @@ namespace Quartz.Simpl
                         break;
                     }
 
-#if NOPERF
+#if !NOPERF
                     // If trigger's job is set as @DisallowConcurrentExecution, and it has already been added to result, then
                     // put it back into the timeTriggers set and continue to search for next trigger.
                     JobKey jobKey = tw.Trigger.JobKey;

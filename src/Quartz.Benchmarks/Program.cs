@@ -8,7 +8,7 @@ namespace Quartz.Benchmarks
     {
         static void Main(string[] args)
         {
-            //log4net.LogManager.GetLogger("xx");
+            log4net.LogManager.GetLogger("xx");
             //.Warn("FUICK");
 
 #if true
@@ -25,7 +25,7 @@ namespace Quartz.Benchmarks
             */
             job.Parallel();
 
-            //Console.WriteLine(sw.ElapsedMilliseconds);
+            Console.WriteLine(sw.ElapsedMilliseconds);
 #else
             BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 #endif
