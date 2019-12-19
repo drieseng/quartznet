@@ -17,6 +17,8 @@
  */
 #endregion
 
+#define TICKS
+
 using System;
 
 namespace Quartz.Impl.Triggers
@@ -32,7 +34,7 @@ namespace Quartz.Impl.Triggers
     /// <author>Marko Lahma (.NET)</author>
     [Serializable]
     public class SimpleTriggerImpl : AbstractTrigger, ISimpleTrigger
-	{
+    {
         /// <summary>
         /// Used to indicate the 'repeat count' of the trigger is indefinite. Or in
         /// other words, the trigger should repeat continually until the trigger's
@@ -224,30 +226,35 @@ namespace Quartz.Impl.Triggers
             set => timesTriggered = value;
         }
 
-	    public override IScheduleBuilder GetScheduleBuilder()
-	    {
+        public override IScheduleBuilder GetScheduleBuilder()
+        {
             SimpleScheduleBuilder sb = SimpleScheduleBuilder.Create()
             .WithInterval(RepeatInterval)
             .WithRepeatCount(RepeatCount);
 
             switch (MisfireInstruction)
             {
-                case Quartz.MisfireInstruction.SimpleTrigger.FireNow: sb.WithMisfireHandlingInstructionFireNow();
+                case Quartz.MisfireInstruction.SimpleTrigger.FireNow:
+                    sb.WithMisfireHandlingInstructionFireNow();
                     break;
-                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithExistingCount: sb.WithMisfireHandlingInstructionNextWithExistingCount();
+                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithExistingCount:
+                    sb.WithMisfireHandlingInstructionNextWithExistingCount();
                     break;
-                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount : sb.WithMisfireHandlingInstructionNextWithRemainingCount();
+                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount:
+                    sb.WithMisfireHandlingInstructionNextWithRemainingCount();
                     break;
-                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount : sb.WithMisfireHandlingInstructionNowWithExistingCount();
+                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount:
+                    sb.WithMisfireHandlingInstructionNowWithExistingCount();
                     break;
-                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithRemainingRepeatCount: sb.WithMisfireHandlingInstructionNowWithRemainingCount();
+                case Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithRemainingRepeatCount:
+                    sb.WithMisfireHandlingInstructionNowWithRemainingCount();
                     break;
             }
 
             return sb;
-	    }
+        }
 
-	    /// <summary>
+        /// <summary>
         /// Returns the final UTC time at which the <see cref="ISimpleTrigger" /> will
         /// fire, if repeatCount is RepeatIndefinitely, null will be returned.
         /// <para>
@@ -262,18 +269,27 @@ namespace Quartz.Impl.Triggers
                 {
                     return StartTimeUtc;
                 }
-                if (repeatCount == RepeatIndefinitely && !EndTimeUtc.HasValue)
-                {
-                    return null;
-                }
                 if (repeatCount == RepeatIndefinitely)
                 {
-                    return GetFireTimeBefore(EndTimeUtc);
+                    if (!EndTimeUtc.HasValue)
+                    {
+                        return null;
+                    }
+
+                    return GetFireTimeBefore(EndTimeUtc.GetValueOrDefault());
                 }
 
+#if TICKS
+                DateTimeOffset lastTrigger = StartTimeUtc.AddTicks(repeatCount * repeatInterval.Ticks);
+#else
                 DateTimeOffset lastTrigger = StartTimeUtc.AddMilliseconds(repeatCount * repeatInterval.TotalMilliseconds);
+#endif
 
+#if NOPERF
                 if (!EndTimeUtc.HasValue || lastTrigger < EndTimeUtc.Value)
+#else
+                if (!EndTimeUtc.HasValue || lastTrigger < EndTimeUtc.GetValueOrDefault())
+#endif
                 {
                     return lastTrigger;
                 }
@@ -288,13 +304,13 @@ namespace Quartz.Impl.Triggers
         /// <value></value>
         public override bool HasMillisecondPrecision => true;
 
-	    /// <summary>
-		/// Validates the misfire instruction.
-		/// </summary>
-		/// <param name="misfireInstruction">The misfire instruction.</param>
-		/// <returns></returns>
-		protected override bool ValidateMisfireInstruction(int misfireInstruction)
-		{
+        /// <summary>
+        /// Validates the misfire instruction.
+        /// </summary>
+        /// <param name="misfireInstruction">The misfire instruction.</param>
+        /// <returns></returns>
+        protected override bool ValidateMisfireInstruction(int misfireInstruction)
+        {
             if (misfireInstruction < Quartz.MisfireInstruction.IgnoreMisfirePolicy)
             {
                 return false;
@@ -307,202 +323,196 @@ namespace Quartz.Impl.Triggers
 
             return true;
 
-		}
-
-		/// <summary>
-		/// Updates the <see cref="ISimpleTrigger" />'s state based on the
-        /// MisfireInstruction value that was selected when the <see cref="ISimpleTrigger" />
-		/// was created.
-		/// </summary>
-		/// <remarks>
-		/// If MisfireSmartPolicyEnabled is set to true,
-		/// then the following scheme will be used: <br />
-		/// <ul>
-		/// <li>If the Repeat Count is 0, then the instruction will
-        /// be interpreted as <see cref="MisfireInstruction.SimpleTrigger.FireNow" />.</li>
-		/// <li>If the Repeat Count is <see cref="RepeatIndefinitely" />, then
-        /// the instruction will be interpreted as <see cref="MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount" />.
-        /// <b>WARNING:</b> using MisfirePolicy.SimpleTrigger.RescheduleNowWithRemainingRepeatCount
-		/// with a trigger that has a non-null end-time may cause the trigger to
-		/// never fire again if the end-time arrived during the misfire time span.
-		/// </li>
-		/// <li>If the Repeat Count is > 0, then the instruction
-        /// will be interpreted as <see cref="MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount" />.
-		/// </li>
-		/// </ul>
-		/// </remarks>
-		public override void UpdateAfterMisfire(ICalendar cal)
-		{
-			int instr = MisfireInstruction;
-			if (instr == Quartz.MisfireInstruction.SmartPolicy)
-			{
-				if (RepeatCount == 0)
-				{
-                    instr = Quartz.MisfireInstruction.SimpleTrigger.FireNow;
-				}
-				else if (RepeatCount == RepeatIndefinitely)
-				{
-                    instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount;
-
-				}
-				else
-				{
-                    instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount;
-				}
-			}
-            else if (instr == Quartz.MisfireInstruction.SimpleTrigger.FireNow && RepeatCount != 0)
-			{
-                instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithRemainingRepeatCount;
-			}
-
-            if (instr == Quartz.MisfireInstruction.SimpleTrigger.FireNow)
-			{
-				nextFireTimeUtc = SystemTime.UtcNow();
-			}
-			else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithExistingCount)
-			{
-                DateTimeOffset? newFireTime = GetFireTimeAfter(SystemTime.UtcNow());
-
-                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
-				{
-					newFireTime = GetFireTimeAfter(newFireTime);
-
-                    if (!newFireTime.HasValue)
-                    {
-                        break;
-                    }
-
-                    //avoid infinite loop
-                    if (newFireTime.Value.Year > YearToGiveupSchedulingAt)
-                    {
-                        newFireTime = null;
-                    }
-				}
-				nextFireTimeUtc = newFireTime;
-			}
-			else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount)
-			{
-                DateTimeOffset? newFireTime = GetFireTimeAfter(SystemTime.UtcNow());
-
-				while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
-				{
-					newFireTime = GetFireTimeAfter(newFireTime);
-
-                    if (!newFireTime.HasValue)
-                    {
-                        break;
-                    }
-
-                    //avoid infinite loop
-                    if (newFireTime.Value.Year > YearToGiveupSchedulingAt)
-                    {
-                        newFireTime = null;
-                    }
-				}
-
-				if (newFireTime.HasValue)
-				{
-					int timesMissed = ComputeNumTimesFiredBetween(nextFireTimeUtc, newFireTime);
-					TimesTriggered = TimesTriggered + timesMissed;
-				}
-
-                nextFireTimeUtc = newFireTime;
-			}
-			else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount)
-			{
-				DateTimeOffset newFireTime = SystemTime.UtcNow();
-				if (repeatCount != 0 && repeatCount != RepeatIndefinitely)
-				{
-					RepeatCount = RepeatCount - TimesTriggered;
-					TimesTriggered = 0;
-				}
-
-				if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
-				{
-					nextFireTimeUtc = null; // We are past the end time
-				}
-				else
-				{
-					StartTimeUtc = newFireTime;
-					nextFireTimeUtc = newFireTime;
-				}
-			}
-			else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithRemainingRepeatCount)
-			{
-				DateTimeOffset newFireTime = SystemTime.UtcNow();
-				int timesMissed = ComputeNumTimesFiredBetween(nextFireTimeUtc, newFireTime);
-
-				if (repeatCount != 0 && repeatCount != RepeatIndefinitely)
-				{
-					int remainingCount = RepeatCount - (TimesTriggered + timesMissed);
-					if (remainingCount <= 0)
-					{
-						remainingCount = 0;
-					}
-					RepeatCount = remainingCount;
-					TimesTriggered = 0;
-				}
-
-
-				if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
-				{
-					nextFireTimeUtc = null; // We are past the end time
-				}
-				else
-				{
-					StartTimeUtc = newFireTime;
-					nextFireTimeUtc = newFireTime;
-				}
-			}
-		}
-
-		/// <summary>
-		/// Called when the <see cref="IScheduler" /> has decided to 'fire'
-		/// the trigger (Execute the associated <see cref="IJob" />), in order to
-		/// give the <see cref="ITrigger" /> a chance to update itself for its next
-		/// triggering (if any).
-		/// </summary>
-		/// <seealso cref="JobExecutionException" />
-		public override void Triggered(ICalendar cal)
-		{
-			timesTriggered++;
-			previousFireTimeUtc = nextFireTimeUtc;
-			nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
-
-			while (nextFireTimeUtc.HasValue && cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.Value))
-			{
-				nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
-
-                if (!nextFireTimeUtc.HasValue)
-                {
-                     break;
-                }
-
-                //avoid infinite loop
-                if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
-                {
-                    nextFireTimeUtc = null;
-                }
-			}
-		}
-
+        }
 
         /// <summary>
-        /// Updates the instance with new calendar.
+        /// Updates the <see cref="ISimpleTrigger" />'s state based on the
+        /// MisfireInstruction value that was selected when the <see cref="ISimpleTrigger" />
+        /// was created.
         /// </summary>
-        /// <param name="calendar">The calendar.</param>
-        /// <param name="misfireThreshold">The misfire threshold.</param>
-		public override void UpdateWithNewCalendar(ICalendar calendar, TimeSpan misfireThreshold)
-		{
-			nextFireTimeUtc = GetFireTimeAfter(previousFireTimeUtc);
-
-            if (nextFireTimeUtc == null || calendar == null)
+        /// <remarks>
+        /// If MisfireSmartPolicyEnabled is set to true,
+        /// then the following scheme will be used: <br />
+        /// <ul>
+        /// <li>If the Repeat Count is 0, then the instruction will
+        /// be interpreted as <see cref="MisfireInstruction.SimpleTrigger.FireNow" />.</li>
+        /// <li>If the Repeat Count is <see cref="RepeatIndefinitely" />, then
+        /// the instruction will be interpreted as <see cref="MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount" />.
+        /// <b>WARNING:</b> using MisfirePolicy.SimpleTrigger.RescheduleNowWithRemainingRepeatCount
+        /// with a trigger that has a non-null end-time may cause the trigger to
+        /// never fire again if the end-time arrived during the misfire time span.
+        /// </li>
+        /// <li>If the Repeat Count is > 0, then the instruction
+        /// will be interpreted as <see cref="MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount" />.
+        /// </li>
+        /// </ul>
+        /// </remarks>
+        public override void UpdateAfterMisfire(ICalendar cal)
+        {
+            int instr = MisfireInstruction;
+            if (instr == Quartz.MisfireInstruction.SmartPolicy)
             {
-                return;
+                if (RepeatCount == 0)
+                {
+                    instr = Quartz.MisfireInstruction.SimpleTrigger.FireNow;
+                }
+                else if (RepeatCount == RepeatIndefinitely)
+                {
+                    instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount;
+                }
+                else
+                {
+                    instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount;
+                }
+            }
+            else if (instr == Quartz.MisfireInstruction.SimpleTrigger.FireNow && RepeatCount != 0)
+            {
+                instr = Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithRemainingRepeatCount;
             }
 
-            DateTimeOffset now = SystemTime.UtcNow();
-            while (nextFireTimeUtc.HasValue && !calendar.IsTimeIncluded(nextFireTimeUtc.Value))
+            if (instr == Quartz.MisfireInstruction.SimpleTrigger.FireNow)
+            {
+                nextFireTimeUtc = SystemTime.UtcNow();
+            }
+            else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithExistingCount)
+            {
+                DateTimeOffset? newFireTime = GetFireTimeAfter(SystemTime.UtcNow());
+
+#if NOPERF
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
+#else
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.GetValueOrDefault()))
+#endif
+                {
+                    newFireTime = GetFireTimeAfter(newFireTime);
+
+                    if (!newFireTime.HasValue)
+                    {
+                        break;
+                    }
+
+                    //avoid infinite loop
+#if NOPERF
+                    if (newFireTime.Value.Year > YearToGiveupSchedulingAt)
+#else
+                    if (newFireTime.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
+                    {
+                        newFireTime = null;
+                    }
+                }
+                nextFireTimeUtc = newFireTime;
+            }
+            else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount)
+            {
+                DateTimeOffset? newFireTime = GetFireTimeAfter(SystemTime.UtcNow());
+
+#if NOPERF
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.Value))
+#else
+                while (newFireTime.HasValue && cal != null && !cal.IsTimeIncluded(newFireTime.GetValueOrDefault()))
+#endif
+                {
+                    newFireTime = GetFireTimeAfter(newFireTime);
+
+                    if (!newFireTime.HasValue)
+                    {
+                        break;
+                    }
+
+                    //avoid infinite loop
+#if NOPERF
+                    if (newFireTime.Value.Year > YearToGiveupSchedulingAt)
+#else
+                    if (newFireTime.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
+                    {
+                        newFireTime = null;
+                    }
+                }
+
+                if (newFireTime.HasValue)
+                {
+                    int timesMissed = ComputeNumTimesFiredBetween(nextFireTimeUtc, newFireTime);
+                    TimesTriggered = TimesTriggered + timesMissed;
+                }
+
+                nextFireTimeUtc = newFireTime;
+            }
+            else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithExistingRepeatCount)
+            {
+                DateTimeOffset newFireTime = SystemTime.UtcNow();
+                if (repeatCount != 0 && repeatCount != RepeatIndefinitely)
+                {
+                    RepeatCount = RepeatCount - TimesTriggered;
+                    TimesTriggered = 0;
+                }
+
+#if NOPERF
+                if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
+#else
+                if (EndTimeUtc.HasValue && EndTimeUtc.GetValueOrDefault() < newFireTime)
+#endif
+                {
+                    nextFireTimeUtc = null; // We are past the end time
+                }
+                else
+                {
+                    StartTimeUtc = newFireTime;
+                    nextFireTimeUtc = newFireTime;
+                }
+            }
+            else if (instr == Quartz.MisfireInstruction.SimpleTrigger.RescheduleNowWithRemainingRepeatCount)
+            {
+                DateTimeOffset newFireTime = SystemTime.UtcNow();
+                int timesMissed = ComputeNumTimesFiredBetween(nextFireTimeUtc, newFireTime);
+
+                if (repeatCount != 0 && repeatCount != RepeatIndefinitely)
+                {
+                    int remainingCount = RepeatCount - (TimesTriggered + timesMissed);
+                    if (remainingCount <= 0)
+                    {
+                        remainingCount = 0;
+                    }
+                    RepeatCount = remainingCount;
+                    TimesTriggered = 0;
+                }
+
+
+#if NOPERF
+                if (EndTimeUtc.HasValue && EndTimeUtc.Value < newFireTime)
+#else
+                if (EndTimeUtc.HasValue && EndTimeUtc.GetValueOrDefault() < newFireTime)
+#endif
+                {
+                    nextFireTimeUtc = null; // We are past the end time
+                }
+                else
+                {
+                    StartTimeUtc = newFireTime;
+                    nextFireTimeUtc = newFireTime;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Called when the <see cref="IScheduler" /> has decided to 'fire'
+        /// the trigger (Execute the associated <see cref="IJob" />), in order to
+        /// give the <see cref="ITrigger" /> a chance to update itself for its next
+        /// triggering (if any).
+        /// </summary>
+        /// <seealso cref="JobExecutionException" />
+        public override void Triggered(ICalendar cal)
+        {
+            timesTriggered++;
+            previousFireTimeUtc = nextFireTimeUtc;
+            nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
+
+#if NOPERF
+            while (nextFireTimeUtc.HasValue && cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.Value))
+#else
+            while (nextFireTimeUtc.HasValue && cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.GetValueOrDefault()))
+#endif
             {
                 nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
 
@@ -512,14 +522,67 @@ namespace Quartz.Impl.Triggers
                 }
 
                 //avoid infinite loop
+#if NOPERF
                 if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
+                {
+                    nextFireTimeUtc = null;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Updates the instance with new calendar.
+        /// </summary>
+        /// <param name="calendar">The calendar.</param>
+        /// <param name="misfireThreshold">The misfire threshold.</param>
+		public override void UpdateWithNewCalendar(ICalendar calendar, TimeSpan misfireThreshold)
+        {
+            nextFireTimeUtc = GetFireTimeAfter(previousFireTimeUtc);
+
+            if (nextFireTimeUtc == null || calendar == null)
+            {
+                return;
+            }
+
+            DateTimeOffset now = SystemTime.UtcNow();
+#if NOPERF
+            while (nextFireTimeUtc.HasValue && !calendar.IsTimeIncluded(nextFireTimeUtc.Value))
+#else
+            while (nextFireTimeUtc.HasValue && !calendar.IsTimeIncluded(nextFireTimeUtc.GetValueOrDefault()))
+#endif
+            {
+                nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
+
+                if (!nextFireTimeUtc.HasValue)
+                {
+                    break;
+                }
+
+                //avoid infinite loop
+#if NOPERF
+                if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                 {
                     nextFireTimeUtc = null;
                 }
 
+#if NOPERF
                 if (nextFireTimeUtc != null && nextFireTimeUtc.Value < now)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault() < now)
+#endif
                 {
+#if NOPERF
                     TimeSpan diff = now - nextFireTimeUtc.Value;
+#else
+                    TimeSpan diff = now - nextFireTimeUtc.GetValueOrDefault();
+#endif
                     if (diff >= misfireThreshold)
                     {
                         nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
@@ -528,27 +591,27 @@ namespace Quartz.Impl.Triggers
             }
         }
 
-		/// <summary>
-		/// Called by the scheduler at the time a <see cref="ITrigger" /> is first
-		/// added to the scheduler, in order to have the <see cref="ITrigger" />
-		/// compute its first fire time, based on any associated calendar.
-		/// <para>
-		/// After this method has been called, <see cref="GetNextFireTimeUtc" />
-		/// should return a valid answer.
-		/// </para>
-		/// </summary>
-		/// <returns>
-		/// The first time at which the <see cref="ITrigger" /> will be fired
-		/// by the scheduler, which is also the same value <see cref="GetNextFireTimeUtc" />
-		/// will return (until after the first firing of the <see cref="ITrigger" />).
-		/// </returns>
+        /// <summary>
+        /// Called by the scheduler at the time a <see cref="ITrigger" /> is first
+        /// added to the scheduler, in order to have the <see cref="ITrigger" />
+        /// compute its first fire time, based on any associated calendar.
+        /// <para>
+        /// After this method has been called, <see cref="GetNextFireTimeUtc" />
+        /// should return a valid answer.
+        /// </para>
+        /// </summary>
+        /// <returns>
+        /// The first time at which the <see cref="ITrigger" /> will be fired
+        /// by the scheduler, which is also the same value <see cref="GetNextFireTimeUtc" />
+        /// will return (until after the first firing of the <see cref="ITrigger" />).
+        /// </returns>
         public override DateTimeOffset? ComputeFirstFireTimeUtc(ICalendar cal)
-    	{
-			nextFireTimeUtc = StartTimeUtc;
+        {
+            nextFireTimeUtc = StartTimeUtc;
 
-			while (cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.Value))
-			{
-				nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
+            while (cal != null && !cal.IsTimeIncluded(nextFireTimeUtc.Value))
+            {
+                nextFireTimeUtc = GetFireTimeAfter(nextFireTimeUtc);
 
                 if (!nextFireTimeUtc.HasValue)
                 {
@@ -556,118 +619,140 @@ namespace Quartz.Impl.Triggers
                 }
 
                 //avoid infinite loop
+#if NOPERF
                 if (nextFireTimeUtc.Value.Year > YearToGiveupSchedulingAt)
+#else
+                if (nextFireTimeUtc.GetValueOrDefault().Year > YearToGiveupSchedulingAt)
+#endif
                 {
                     return null;
                 }
-			}
+            }
 
-			return nextFireTimeUtc;
-		}
+            return nextFireTimeUtc;
+        }
 
 
-		/// <summary>
-		/// Returns the next time at which the <see cref="ISimpleTrigger" /> will
-		/// fire. If the trigger will not fire again, <see langword="null" /> will be
-		/// returned. The value returned is not guaranteed to be valid until after
-		/// the <see cref="ITrigger" /> has been added to the scheduler.
-		/// </summary>
+        /// <summary>
+        /// Returns the next time at which the <see cref="ISimpleTrigger" /> will
+        /// fire. If the trigger will not fire again, <see langword="null" /> will be
+        /// returned. The value returned is not guaranteed to be valid until after
+        /// the <see cref="ITrigger" /> has been added to the scheduler.
+        /// </summary>
         public override DateTimeOffset? GetNextFireTimeUtc()
-		{
-			return nextFireTimeUtc;
-		}
+        {
+            return nextFireTimeUtc;
+        }
 
         public override void SetNextFireTimeUtc(DateTimeOffset? nextFireTime)
-	    {
+        {
             nextFireTimeUtc = nextFireTime;
-	    }
+        }
 
         public override void SetPreviousFireTimeUtc(DateTimeOffset? previousFireTime)
-	    {
+        {
             previousFireTimeUtc = previousFireTime;
-	    }
+        }
 
-	    /// <summary>
-	    /// Returns the previous time at which the <see cref="ISimpleTrigger" /> fired.
-	    /// If the trigger has not yet fired, <see langword="null" /> will be
-	    /// returned.
-	    /// </summary>
-	    public override DateTimeOffset? GetPreviousFireTimeUtc()
-	    {
-	        return previousFireTimeUtc;
-	    }
+        /// <summary>
+        /// Returns the previous time at which the <see cref="ISimpleTrigger" /> fired.
+        /// If the trigger has not yet fired, <see langword="null" /> will be
+        /// returned.
+        /// </summary>
+        public override DateTimeOffset? GetPreviousFireTimeUtc()
+        {
+            return previousFireTimeUtc;
+        }
 
-		/// <summary>
-		/// Returns the next UTC time at which the <see cref="ISimpleTrigger" /> will
-		/// fire, after the given UTC time. If the trigger will not fire after the given
-		/// time, <see langword="null" /> will be returned.
-		/// </summary>
+        /// <summary>
+        /// Returns the next UTC time at which the <see cref="ISimpleTrigger" /> will
+        /// fire, after the given UTC time. If the trigger will not fire after the given
+        /// time, <see langword="null" /> will be returned.
+        /// </summary>
         public override DateTimeOffset? GetFireTimeAfter(DateTimeOffset? afterTimeUtc)
-		{
-			if (timesTriggered > repeatCount && repeatCount != RepeatIndefinitely)
-			{
-				return null;
-			}
+        {
+            if (timesTriggered > repeatCount && repeatCount != RepeatIndefinitely)
+            {
+                return null;
+            }
 
-			if (!afterTimeUtc.HasValue)
-			{
-				afterTimeUtc = SystemTime.UtcNow();
-			}
+            if (!afterTimeUtc.HasValue)
+            {
+                afterTimeUtc = SystemTime.UtcNow();
+            }
 
-			if (repeatCount == 0 && afterTimeUtc.Value.CompareTo(StartTimeUtc) >= 0)
-			{
-				return null;
-			}
+#if NOPERF
+            if (repeatCount == 0 && afterTimeUtc.Value.CompareTo(StartTimeUtc) >= 0)
+#else
+            if (repeatCount == 0 && afterTimeUtc.GetValueOrDefault().CompareTo(StartTimeUtc) >= 0)
+#endif
+            {
+                return null;
+            }
 
-			DateTimeOffset startMillis = StartTimeUtc;
-			DateTimeOffset afterMillis = afterTimeUtc.Value;
-			DateTimeOffset endMillis = EndTimeUtc ?? DateTimeOffset.MaxValue;
+            DateTimeOffset startMillis = StartTimeUtc;
+#if NOPERF
+            DateTimeOffset afterMillis = afterTimeUtc.Value;
+#else
+            DateTimeOffset afterMillis = afterTimeUtc.GetValueOrDefault();
+#endif
+            DateTimeOffset endMillis = EndTimeUtc.GetValueOrDefault(DateTimeOffset.MaxValue);
 
+            if (endMillis <= afterMillis)
+            {
+                return null;
+            }
 
-			if (endMillis <= afterMillis)
-			{
-				return null;
-			}
+            if (afterMillis < startMillis)
+            {
+                return startMillis;
+            }
 
-			if (afterMillis < startMillis)
-			{
-				return startMillis;
-			}
+#if TICKS
+            long numberOfTimesExecuted = (long)((long)(afterMillis - startMillis).Ticks / repeatInterval.Ticks + 1);
+#else
+            long numberOfTimesExecuted = (long)((long) (afterMillis - startMillis).TotalMilliseconds / repeatInterval.TotalMilliseconds + 1);
+#endif
 
-			long numberOfTimesExecuted = (long) ((long) (afterMillis - startMillis).TotalMilliseconds / repeatInterval.TotalMilliseconds + 1);
+            if (numberOfTimesExecuted > repeatCount &&
+                repeatCount != RepeatIndefinitely)
+            {
+                return null;
+            }
 
-			if (numberOfTimesExecuted > repeatCount &&
-				repeatCount != RepeatIndefinitely)
-			{
-				return null;
-			}
+#if TICKS
+            DateTimeOffset time = startMillis.AddTicks(numberOfTimesExecuted * repeatInterval.Ticks);
+#else
+            DateTimeOffset time = startMillis.AddMilliseconds(numberOfTimesExecuted * repeatInterval.TotalMilliseconds);
+#endif
 
-			DateTimeOffset time = startMillis.AddMilliseconds(numberOfTimesExecuted * repeatInterval.TotalMilliseconds);
+            if (endMillis <= time)
+            {
+                return null;
+            }
 
-			if (endMillis <= time)
-			{
-				return null;
-			}
+            return time;
+        }
 
-
-			return time;
-		}
-
-		/// <summary>
-		/// Returns the last UTC time at which the <see cref="ISimpleTrigger" /> will
-		/// fire, before the given time. If the trigger will not fire before the
-		/// given time, <see langword="null" /> will be returned.
-		/// </summary>
+        /// <summary>
+        /// Returns the last UTC time at which the <see cref="ISimpleTrigger" /> will
+        /// fire, before the given time. If the trigger will not fire before the
+        /// given time, <see langword="null" /> will be returned.
+        /// </summary>
         public virtual DateTimeOffset? GetFireTimeBefore(DateTimeOffset? endUtc)
-		{
-			if (endUtc.Value < StartTimeUtc)
-			{
-				return null;
-			}
+        {
+            if (endUtc.GetValueOrDefault() < StartTimeUtc)
+            {
+                return null;
+            }
 
-			int numFires = ComputeNumTimesFiredBetween(StartTimeUtc, endUtc);
-			return StartTimeUtc.AddMilliseconds(numFires*repeatInterval.TotalMilliseconds);
-		}
+            int numFires = ComputeNumTimesFiredBetween(StartTimeUtc, endUtc);
+#if TICKS
+            return StartTimeUtc.AddTicks(numFires * repeatInterval.Ticks);
+#else
+            return StartTimeUtc.AddMilliseconds(numFires*repeatInterval.TotalMilliseconds);
+#endif
+        }
 
         /// <summary>
         /// Computes the number of times fired between the two UTC date times.
@@ -676,32 +761,41 @@ namespace Quartz.Impl.Triggers
         /// <param name="endTimeUtc">The UTC end date and time.</param>
         /// <returns></returns>
         public virtual int ComputeNumTimesFiredBetween(DateTimeOffset? startTimeUtc, DateTimeOffset? endTimeUtc)
-		{
-			long time = (long) (endTimeUtc.Value - startTimeUtc.Value).TotalMilliseconds;
+        {
+#if TICKS
+            long time = (long)(endTimeUtc.Value - startTimeUtc.Value).Ticks;
+            return (int)(time / repeatInterval.Ticks);
+#else
+            long time = (long) (endTimeUtc.Value - startTimeUtc.Value).TotalMilliseconds;
 			return (int) (time/repeatInterval.TotalMilliseconds);
-		}
+#endif
+        }
 
-		/// <summary>
-		/// Determines whether or not the <see cref="ISimpleTrigger" /> will occur
-		/// again.
-		/// </summary>
-		public override bool GetMayFireAgain()
-		{
-			return GetNextFireTimeUtc().HasValue;
-		}
+        /// <summary>
+        /// Determines whether or not the <see cref="ISimpleTrigger" /> will occur
+        /// again.
+        /// </summary>
+        public override bool GetMayFireAgain()
+        {
+            return GetNextFireTimeUtc().HasValue;
+        }
 
-		/// <summary>
-		/// Validates whether the properties of the <see cref="IJobDetail" /> are
-		/// valid for submission into a <see cref="IScheduler" />.
-		/// </summary>
-		public override void Validate()
-		{
-			base.Validate();
+        /// <summary>
+        /// Validates whether the properties of the <see cref="IJobDetail" /> are
+        /// valid for submission into a <see cref="IScheduler" />.
+        /// </summary>
+        public override void Validate()
+        {
+            base.Validate();
 
-			if (repeatCount != 0 && repeatInterval.TotalMilliseconds < 1)
-			{
-				throw new SchedulerException("Repeat Interval cannot be zero.");
-			}
-		}
-	}
+#if TICKS
+            if (repeatCount != 0 && repeatInterval.Ticks < 1)
+#else
+            if (repeatCount != 0 && repeatInterval.TotalMilliseconds < 1)
+#endif
+            {
+                throw new SchedulerException("Repeat Interval cannot be zero.");
+            }
+        }
+    }
 }
